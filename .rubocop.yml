@@ -1,0 +1,16 @@
+plugins:
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 3.4
+  NewCops: enable
+  Exclude:
+    - "bin/**/*"
+    - "vendor/**/*"
+
+Layout/LineLength:
+  Max: 120
+
+RSpec/SpecFilePathFormat:
+  CustomTransform:
+    ApiContract: api_contract

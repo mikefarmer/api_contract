@@ -1,0 +1,29 @@
+module ApiContract
+  VERSION: String
+
+  class Error < StandardError
+  end
+
+  class MissingAttributeError < Error
+  end
+
+  class UnexpectedAttributeError < Error
+  end
+
+  class InvalidContractError < Error
+    attr_reader contract: Base?
+
+    def initialize: (?String? message, ?contract: Base?) -> void
+  end
+
+  class Base
+    include ActiveModel::Model
+    include ActiveModel::Attributes
+    include ActiveModel::Validations::Callbacks
+
+    def self.from_params: (untyped params) -> Base
+    def self.from_json: (String json) -> Base
+    def schema_valid?: () -> bool
+    def schema_validate!: () -> void
+  end
+end

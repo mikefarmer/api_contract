@@ -1,11 +1,11 @@
-# Contract
+# ApiContract
 
 A Ruby gem for defining typed, validated, immutable data transfer objects (DTOs) with first-class Rails integration. Contracts are a drop-in replacement for `ActionController::Parameters` (StrongParameters) that bring type coercion, structural validation, and immutability to controller boundaries — distinct from ActiveRecord validations, which guard persistence.
 
 ## Installation
 
 ```ruby
-gem 'contract'
+gem 'api_contract'
 ```
 
 ## Overview
@@ -30,7 +30,7 @@ def user_params
   params.require(:user).permit(:name, :email, :age)
 end
 
-# After: Contract
+# After: ApiContract
 user_contract = UserContract.from_params(params)
 ```
 
@@ -42,7 +42,7 @@ Create a base contract for shared constants and behavior, then inherit from it:
 
 ```ruby
 # app/contracts/application_contract.rb
-class ApplicationContract < Contract::Base
+class ApplicationContract < ApiContract::Base
   EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i
 end
 
@@ -101,7 +101,7 @@ contract.errors   # => { email: ["is invalid"] }
 To raise on schema errors, call `schema_validate!` explicitly:
 
 ```ruby
-contract.schema_validate! # => raises Contract::MissingAttributeError or Contract::UnexpectedAttributeError
+contract.schema_validate! # => raises ApiContract::MissingAttributeError or ApiContract::UnexpectedAttributeError
 ```
 
 ### `from_params` and `from_json` — strict deserialization
@@ -130,12 +130,12 @@ class UsersController < ApplicationController
   end
 
   # Schema violations — wrong shape, missing or unexpected keys
-  rescue_from Contract::MissingAttributeError, Contract::UnexpectedAttributeError do |e|
+  rescue_from ApiContract::MissingAttributeError, ApiContract::UnexpectedAttributeError do |e|
     render json: ApiErrorResponseContract.from_error(e), status: :bad_request
   end
 
   # Valid shape, invalid data — failed validations or type coercion errors
-  rescue_from Contract::InvalidContractError do |e|
+  rescue_from ApiContract::InvalidContractError do |e|
     response_contract = ApiErrorResponseContract.from_error(e)
     render json: response_contract, status: response_contract.status
   end
@@ -174,7 +174,7 @@ contract.to_params            # => ActionController::Parameters (pre-permitted)
 contract.to_params.permitted? # => true if schema_valid?, false otherwise
 ```
 
-Serialization methods raise `Contract::InvalidContractError` when called on an invalid contract. Use `valid?` and `errors` to inspect state before serializing, or rescue the exception at the appropriate boundary.
+Serialization methods raise `ApiContract::InvalidContractError` when called on an invalid contract. Use `valid?` and `errors` to inspect state before serializing, or rescue the exception at the appropriate boundary.
 
 `to_params` returns a pre-permitted `ActionController::Parameters` instance. The structure mirrors whatever Rails' `ActionController::Parameters` would produce natively for the same data — nested contracts become nested `ActionController::Parameters` objects, and typed arrays become arrays of the appropriate type. This ensures that any code consuming the result behaves identically to code that received the params directly from a controller, with no further `permit` calls required.
 
@@ -200,7 +200,7 @@ contract.read_only? # => true
 
 ```ruby
 # Clone with changed attributes — returns a new immutable contract
-# Calls schema_validate! internally; raises Contract::MissingAttributeError if structurally invalid
+# Calls schema_validate! internally; raises ApiContract::MissingAttributeError if structurally invalid
 contract.clone(age: 26)
 
 # Merge two contracts — deep merges the argument into the receiver, argument always wins
@@ -215,13 +215,13 @@ mutable.read_only? # => false
 mutable.age = 26
 
 # mutate is like clone but with required arguments — the changed attributes must be explicitly provided
-# Calls schema_validate! internally; raises Contract::MissingAttributeError if required attrs are absent
+# Calls schema_validate! internally; raises ApiContract::MissingAttributeError if required attrs are absent
 mutable.mutate(name: "Jimmy")
 ```
 
 The mutation surface is deliberately narrow. `dup` is the escape hatch to mutable state; `clone` and `merge` restore immutability. This prevents accidental state drift when contracts are passed across service boundaries.
 
-**Note:** `clone` and `mutate` call `schema_validate!` internally. If a mutable contract has required attributes set to nil, `clone` or `mutate` will raise `Contract::MissingAttributeError`.
+**Note:** `clone` and `mutate` call `schema_validate!` internally. If a mutable contract has required attributes set to nil, `clone` or `mutate` will raise `ApiContract::MissingAttributeError`.
 
 **`merge` behavior:** `merge` uses `deep_merge` under the hood — nested contracts are merged recursively, not replaced wholesale. The argument's values always win on conflict, including `nil`. A `nil` value in the argument will overwrite a populated value in the receiver. By default, `merge` calls both `schema_validate!` (`strict: true`) and `valid?` (`validate: true`) on the result; either can be disabled via keyword arguments when you need partial or intermediate states.
 
@@ -333,7 +333,7 @@ Deserialization attempts each contract in declaration order using the following 
 3. If `schema_validate!` raises, move to the next candidate
 4. If `schema_validate!` does not raise, return that contract
 
-If no candidate passes `schema_validate!` and `permissive: true` is not set, `Contract::UnexpectedAttributeError` is raised.
+If no candidate passes `schema_validate!` and `permissive: true` is not set, `ApiContract::UnexpectedAttributeError` is raised.
 
 ## Types Reference
 
@@ -347,7 +347,7 @@ If no candidate passes `schema_validate!` and `permissive: true` is not set, `Co
 
 **`:permissive_array`** — Accepts any array including nested hashes and nils. Serializes to a JSON array.
 
-**`array: :type`** — Typed array. Elements are coerced using standard ActiveModel casting rules — `"100"` coerces to `100` for an `:integer` array. However, values that ActiveModel would silently cast to a fallback (e.g., `"a"` → `0`) must instead raise `Contract::InvalidContractError`. The gem must override ActiveModel's default silent-fallback behavior for typed arrays so that only genuinely coercible values are accepted.
+**`array: :type`** — Typed array. Elements are coerced using standard ActiveModel casting rules — `"100"` coerces to `100` for an `:integer` array. However, values that ActiveModel would silently cast to a fallback (e.g., `"a"` → `0`) must instead raise `ApiContract::InvalidContractError`. The gem must override ActiveModel's default silent-fallback behavior for typed arrays so that only genuinely coercible values are accepted.
 
 **`contract:`** — Nested contract, with recursive validation.
 
@@ -444,11 +444,11 @@ Note that `latitude` and `longitude` are regular optional attributes populated v
 
 ## Permissive Attributes
 
-When a contract needs to accept and round-trip unknown keys alongside its declared schema, include `Contract::PermissiveAttributes`. Including this module also disables strict deserialization — `from_params` and `from_json` will no longer raise `UnexpectedAttributeError` for unknown keys, routing them to `permissive_attributes` instead. This is intentional: permissive contracts are used when payloads are flexible or partially unknown, and it is left to the implementor to define any custom validation logic for those extra attributes rather than having the contract reject them outright.
+When a contract needs to accept and round-trip unknown keys alongside its declared schema, include `ApiContract::PermissiveAttributes`. Including this module also disables strict deserialization — `from_params` and `from_json` will no longer raise `UnexpectedAttributeError` for unknown keys, routing them to `permissive_attributes` instead. This is intentional: permissive contracts are used when payloads are flexible or partially unknown, and it is left to the implementor to define any custom validation logic for those extra attributes rather than having the contract reject them outright.
 
 ```ruby
-class PermissiveHashContract < Contract::Base
-  include Contract::PermissiveAttributes
+class PermissiveHashContract < ApiContract::Base
+  include ApiContract::PermissiveAttributes
 
   attribute :name, :string
   attribute :data, :permissive_hash
@@ -551,14 +551,14 @@ Because the schema is derived directly from the contract class used in the contr
 
 | Exception | When |
 |---|---|
-| `Contract::MissingAttributeError` | One or more required attributes are absent. Checked before unexpected attributes. |
-| `Contract::UnexpectedAttributeError` | Attributes are present that are not declared in the schema. |
+| `ApiContract::MissingAttributeError` | One or more required attributes are absent. Checked before unexpected attributes. |
+| `ApiContract::UnexpectedAttributeError` | Attributes are present that are not declared in the schema. |
 
 ### Data-Level
 
 | Exception | When |
 |---|---|
-| `Contract::InvalidContractError` | Structural shape is correct but data fails validations or type coercion. Exposes a `#contract` method returning the original contract object; use `#errors` on it to retrieve validation messages. |
+| `ApiContract::InvalidContractError` | Structural shape is correct but data fails validations or type coercion. Exposes a `#contract` method returning the original contract object; use `#errors` on it to retrieve validation messages. |
 
 `InvalidContractError` is also raised by serialization methods (`to_json`, `as_json`, `as_camelcase_json`) when called on an invalid contract.
 
@@ -574,7 +574,7 @@ Because the schema is derived directly from the contract class used in the contr
 
 4. **`mutate` vs `clone` distinction** — ✅ Resolved. `clone` accepts optional keyword arguments — you can provide as many or as few changed attributes as you like. `mutate` requires that the changed attributes be explicitly provided as arguments; it will not accept an empty call. Both return a new immutable contract and call `schema_validate!` internally.
 
-5. **Array element type coercion errors** — ✅ Resolved. Standard ActiveModel coercion applies where the cast is meaningful — `"100"` coerces to `100` for an `:integer` array. Values that ActiveModel would silently fall back on (e.g., `"a"` → `0`) must raise `Contract::InvalidContractError` instead. The gem must intercept ActiveModel's silent-fallback path for typed arrays and treat those cases as data-level errors.
+5. **Array element type coercion errors** — ✅ Resolved. Standard ActiveModel coercion applies where the cast is meaningful — `"100"` coerces to `100` for an `:integer` array. Values that ActiveModel would silently fall back on (e.g., `"a"` → `0`) must raise `ApiContract::InvalidContractError` instead. The gem must intercept ActiveModel's silent-fallback path for typed arrays and treat those cases as data-level errors.
 
 6. **Thread safety of string-referenced contracts** — ✅ Resolved. String-referenced contract resolution is memoized and must be implemented in a thread-safe manner. The gem must ensure that concurrent Rails requests resolving the same string reference do not produce race conditions — for example, by using `Mutex` or Ruby's `||=` under a class-level lock rather than a bare instance variable assignment.
 
