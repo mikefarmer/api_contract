@@ -14,15 +14,15 @@ module ApiContract
     #   contract.items # => [1, "two", nil, { x: 3 }]
     class PermissiveArray < ActiveModel::Type::Value
       # Casts the input to an array. Returns +nil+ for +nil+, passes
-      # through arrays unchanged, and wraps other values using +Array()+.
+      # through arrays unchanged, and passes through non-array values
+      # so that strict coercion validation can reject them.
       #
       # @param value [Object] the input value
-      # @return [Array, nil] the cast array or nil
+      # @return [Array, nil, Object] the cast array, nil, or the original value
       def cast(value)
         return nil if value.nil?
-        return value if value.is_a?(Array)
 
-        Array(value)
+        value
       end
 
       # Returns the type name used for registration and metadata.

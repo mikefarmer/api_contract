@@ -339,4 +339,42 @@ RSpec.describe ApiContract::Base do
       expect(contract.code).to eq('XYZ')
     end
   end
+
+  describe 'permissive_hash attribute' do
+    let(:hash_contract_class) do
+      Class.new(described_class) do
+        attribute :name, :string
+        attribute :metadata, :permissive_hash, optional: true
+      end
+    end
+
+    it 'accepts a hash and symbolizes keys' do
+      contract = hash_contract_class.new(name: 'Alice', metadata: { 'role' => 'admin' })
+      expect(contract.metadata).to eq(role: 'admin')
+    end
+
+    it 'deep-symbolizes nested keys' do
+      contract = hash_contract_class.new(name: 'Alice', metadata: { 'a' => { 'b' => 1 } })
+      expect(contract.metadata).to eq(a: { b: 1 })
+    end
+
+    it 'registers permissive_hash type in the attribute registry' do
+      expect(hash_contract_class.attribute_registry[:metadata][:type]).to eq(:permissive_hash)
+    end
+
+    it 'is schema valid when optional and absent' do
+      contract = hash_contract_class.new(name: 'Alice')
+      expect(contract.schema_valid?).to be true
+    end
+
+    it 'is schema valid when provided with a hash' do
+      contract = hash_contract_class.new(name: 'Alice', metadata: { x: 1 })
+      expect(contract.schema_valid?).to be true
+    end
+
+    it 'returns nil when not provided' do
+      contract = hash_contract_class.new(name: 'Alice')
+      expect(contract.metadata).to be_nil
+    end
+  end
 end

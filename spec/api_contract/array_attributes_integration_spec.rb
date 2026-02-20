@@ -37,6 +37,12 @@ RSpec.describe 'ApiContract::Base array attributes' do # rubocop:disable RSpec/D
     it 'passes validation with genuinely coerced elements' do
       expect(klass.new(foods: %w[a b], counts: %w[1 2])).to be_valid
     end
+
+    it 'rejects non-array values via strict coercion' do
+      contract = klass.new(foods: 'not an array', counts: [1])
+      contract.valid?
+      expect(contract.errors[:foods]).to include(match(/is not a valid array/))
+    end
   end
 
   describe 'permissive arrays' do
@@ -51,13 +57,34 @@ RSpec.describe 'ApiContract::Base array attributes' do # rubocop:disable RSpec/D
       expect(contract.items).to eq([1, nil, { x: 1 }, 'hello'])
     end
 
-    it 'always passes validation' do
+    it 'passes validation with array input' do
       expect(klass.new(items: ['anything'])).to be_valid
     end
 
-    it 'returns nil for nil input' do
+    it 'adds a validation error for nil when required' do
       contract = klass.new(items: nil)
-      expect(contract.items).to be_nil
+      contract.valid?
+      expect(contract.errors[:items]).to include(match(/is not a valid array/))
+    end
+
+    it 'rejects non-array values via strict coercion' do
+      contract = klass.new(items: 'not an array')
+      contract.valid?
+      expect(contract.errors[:items]).to include(match(/is not a valid array/))
+    end
+
+    context 'when optional' do
+      let(:klass) do
+        Class.new(ApiContract::Base) do
+          attribute :items, array: :permissive, optional: true
+        end
+      end
+
+      it 'is valid with nil' do
+        contract = klass.new(items: nil)
+        contract.valid?
+        expect(contract.errors[:items]).to be_empty
+      end
     end
   end
 

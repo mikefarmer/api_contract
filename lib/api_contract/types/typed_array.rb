@@ -26,15 +26,16 @@ module ApiContract
       end
 
       # Casts the input to an array, coercing each element with the
-      # element type caster. Returns +nil+ for +nil+.
+      # element type caster. Returns +nil+ for +nil+ and passes through
+      # non-array values so that strict coercion validation can reject them.
       #
       # @param value [Object] the input value
-      # @return [Array, nil] the cast array or nil
+      # @return [Array, nil, Object] the cast array, nil, or the original value
       def cast(value)
         return nil if value.nil?
+        return value unless value.is_a?(Array)
 
-        array = value.is_a?(Array) ? value : Array(value)
-        array.map { |element| @element_caster.cast(element) }
+        value.map { |element| @element_caster.cast(element) }
       end
 
       # Returns the type name for metadata.

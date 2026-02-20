@@ -47,22 +47,46 @@ module ApiContract
       raw = @_raw_attributes[attr_name]
       cast = public_send(attr_name)
 
-      if meta[:type] == :array && meta[:element_type] && meta[:element_type] != :permissive
-        validate_typed_array_coercion(attr_name, raw, cast, meta[:element_type])
-      elsif meta[:type] != :array
+      if meta[:type] == :array
+        validate_array_coercion(attr_name, raw, cast, meta[:element_type], meta[:optional])
+      elsif meta[:type] == :permissive_hash
+        validate_permissive_hash_coercion(attr_name, raw, meta[:optional])
+      else
         validate_scalar_coercion(attr_name, raw, cast, meta[:type])
       end
+    end
+
+    # Validates an array attribute. Rejects non-array values and, for
+    # typed arrays, delegates to element-level validation. Only allows
+    # +nil+ when the attribute is optional.
+    #
+    # @param attr_name [Symbol] the attribute name
+    # @param raw [Object] the raw pre-cast value
+    # @param cast [Object] the cast value
+    # @param element_type [Symbol, nil] the element type symbol
+    # @param optional [Boolean] whether the attribute is optional
+    # @return [void]
+    def validate_array_coercion(attr_name, raw, cast, element_type, optional)
+      return if raw.nil? && optional
+
+      unless raw.is_a?(Array)
+        errors.add(attr_name, "is not a valid array: #{raw.inspect}")
+        return
+      end
+
+      validate_typed_array_elements(attr_name, raw, cast, element_type)
     end
 
     # Validates each element of a typed array for fallback casts.
     #
     # @param attr_name [Symbol] the attribute name
-    # @param raw [Object] the raw pre-cast value
-    # @param cast [Array, nil] the cast array
-    # @param element_type [Symbol] the element type symbol
+    # @param raw [Array] the raw pre-cast array
+    # @param cast [Object] the cast value
+    # @param element_type [Symbol, nil] the element type symbol
     # @return [void]
-    def validate_typed_array_coercion(attr_name, raw, cast, element_type)
-      return unless raw.is_a?(Array) && cast.is_a?(Array)
+    def validate_typed_array_elements(attr_name, raw, cast, element_type)
+      return if element_type.nil? || element_type == :permissive
+      return unless cast.is_a?(Array)
 
       raw.each_with_index do |raw_element, index|
         cast_element = cast[index]
@@ -83,6 +107,20 @@ module ApiContract
       return if Types::StrictCoercionValidator.valid_cast?(raw, cast, type_sym)
 
       errors.add(attr_name, "is not a valid #{type_sym}: #{raw.inspect}")
+    end
+
+    # Validates that a permissive_hash attribute received a Hash. Only
+    # allows +nil+ when the attribute is optional.
+    #
+    # @param attr_name [Symbol] the attribute name
+    # @param raw [Object] the raw pre-cast value
+    # @param optional [Boolean] whether the attribute is optional
+    # @return [void]
+    def validate_permissive_hash_coercion(attr_name, raw, optional)
+      return if raw.nil? && optional
+      return if raw.is_a?(Hash)
+
+      errors.add(attr_name, "is not a valid permissive_hash: #{raw.inspect}")
     end
   end
 end

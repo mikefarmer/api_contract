@@ -25,8 +25,8 @@ RSpec.describe ApiContract::Types::TypedArray do
         expect(type.cast([nil, '1'])).to eq([nil, 1])
       end
 
-      it 'wraps non-array values' do
-        expect(type.cast('5')).to eq([5])
+      it 'passes through non-array values' do
+        expect(type.cast('5')).to eq('5')
       end
     end
 

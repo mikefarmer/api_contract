@@ -17,8 +17,8 @@ RSpec.describe ApiContract::Types::PermissiveArray do
       expect(type.cast(input)).to eq(input)
     end
 
-    it 'wraps non-array values' do
-      expect(type.cast('hello')).to eq(['hello'])
+    it 'passes through non-array values' do
+      expect(type.cast('hello')).to eq('hello')
     end
 
     it 'preserves nested hashes' do

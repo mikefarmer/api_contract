@@ -344,11 +344,11 @@ If no candidate passes `schema_validate!` and `permissive: true` is not set, `Ap
 
 ### Special Types
 
-**`:permissive_hash`** — Accepts any hash with any keys. Serializes to a JSON object. Deserializes to a `Hash` with symbolized keys.
+**`:permissive_hash`** — Accepts any hash with any keys. Serializes to a JSON object. Deserializes to a `Hash` with symbolized keys. "Permissive" refers to the hash contents — any keys and values are allowed — not to the value itself. A `nil` value is not a valid hash, so `nil` is rejected unless the attribute is declared `optional: true`.
 
-**`array: :type`** — Typed array. Elements are coerced using standard ActiveModel casting rules — `"100"` coerces to `100` for an `:integer` array. However, values that ActiveModel would silently cast to a fallback (e.g., `"a"` → `0`) must instead raise `ApiContract::InvalidContractError`. The gem must override ActiveModel's default silent-fallback behavior for typed arrays so that only genuinely coercible values are accepted.
+**`array: :type`** — Typed array. Elements are coerced using standard ActiveModel casting rules — `"100"` coerces to `100` for an `:integer` array. However, values that ActiveModel would silently cast to a fallback (e.g., `"a"` → `0`) must instead raise `ApiContract::InvalidContractError`. The gem must override ActiveModel's default silent-fallback behavior for typed arrays so that only genuinely coercible values are accepted. Non-array values (including `nil`) are rejected unless the attribute is declared `optional: true`.
 
-**`array: :permissive`** — Accepts any array including nested hashes and nils. No element coercion or validation. Serializes to a JSON array.
+**`array: :permissive`** — Accepts any array including nested hashes and nils. "Permissive" refers to the array elements — any types are allowed — not to the value itself. No element coercion or validation. Serializes to a JSON array. Non-array values (including `nil`) are rejected unless the attribute is declared `optional: true`.
 
 **`contract:`** — Nested contract, with recursive validation.
 
