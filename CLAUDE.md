@@ -10,3 +10,6 @@ We want this gem to be useful to the general public so follow strict ruby practi
 - Latest Rubocop Standards
 - Full test suite using RSpec
 - All public methods and classes documented with YARD. Generated YARD documentation should live in this repository.
+
+## REQUIRED
+- Always run `rubocop -a` after changing a ruby file. If any issues are found and not auto-corrected, correct them.

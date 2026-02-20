@@ -5,10 +5,30 @@ module ApiContract
   class Error < StandardError; end
 
   # Raised when one or more required attributes are absent from the input.
-  class MissingAttributeError < Error; end
+  class MissingAttributeError < Error
+    # @return [Array<Symbol>] the missing attribute names
+    attr_reader :attributes
+
+    # @param message [String] the error message
+    # @param attributes [Array<Symbol>] the missing attribute names
+    def initialize(message = nil, attributes: [])
+      @attributes = attributes
+      super(message)
+    end
+  end
 
   # Raised when attributes are present that are not declared in the schema.
-  class UnexpectedAttributeError < Error; end
+  class UnexpectedAttributeError < Error
+    # @return [Array<Symbol>] the unexpected attribute names
+    attr_reader :attributes
+
+    # @param message [String] the error message
+    # @param attributes [Array<Symbol>] the unexpected attribute names
+    def initialize(message = nil, attributes: [])
+      @attributes = attributes
+      super(message)
+    end
+  end
 
   # Raised when the structural shape is correct but data fails validations
   # or type coercion. Exposes the original contract via {#contract}.
