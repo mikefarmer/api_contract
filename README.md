@@ -52,8 +52,9 @@ class UserContract < ApplicationContract
   attribute :age,                :integer,         optional: true, description: "User's age"
   attribute :email,              :string,          description: "Email address"
   attribute :home_address,       contract: 'AddressContract', description: "User's home address"
-  attribute :health_information, :permissive_hash, optional: true, description: "Any health information"
-  attribute :favorite_foods,     array: :string,   description: "Favorite foods, max 3"
+  attribute :health_information, :permissive_hash,    optional: true, description: "Any health information"
+  attribute :favorite_foods,     array: :string,      description: "Favorite foods, max 3"
+  attribute :random_stuff,       array: :permissive,  optional: true, description: "Any array data"
 
   normalizes :email, with: ->(email) { email.strip.downcase }
 
@@ -345,9 +346,9 @@ If no candidate passes `schema_validate!` and `permissive: true` is not set, `Ap
 
 **`:permissive_hash`** — Accepts any hash with any keys. Serializes to a JSON object. Deserializes to a `Hash` with symbolized keys.
 
-**`:permissive_array`** — Accepts any array including nested hashes and nils. Serializes to a JSON array.
-
 **`array: :type`** — Typed array. Elements are coerced using standard ActiveModel casting rules — `"100"` coerces to `100` for an `:integer` array. However, values that ActiveModel would silently cast to a fallback (e.g., `"a"` → `0`) must instead raise `ApiContract::InvalidContractError`. The gem must override ActiveModel's default silent-fallback behavior for typed arrays so that only genuinely coercible values are accepted.
+
+**`array: :permissive`** — Accepts any array including nested hashes and nils. No element coercion or validation. Serializes to a JSON array.
 
 **`contract:`** — Nested contract, with recursive validation.
 

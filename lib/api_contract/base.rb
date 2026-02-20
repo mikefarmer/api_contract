@@ -19,6 +19,7 @@ module ApiContract
     include ActiveModel::Attributes
     include ActiveModel::Validations::Callbacks
     include AttributeRegistry
+    include StrictCoercion
 
     # Constructs a new contract instance. Never raises an exception,
     # regardless of which attributes are passed.
@@ -26,13 +27,15 @@ module ApiContract
     # Symbolizes incoming keys, separates known from unexpected attributes,
     # and tracks which keys were explicitly provided. When a key's value is
     # +nil+ and the attribute has a +default:+, the key is omitted so that
-    # ActiveModel applies the default.
+    # ActiveModel applies the default. Pre-cast values are captured so the
+    # strict coercion validator can detect silent fallback casts.
     #
     # @param attrs [Hash] the input attributes
     def initialize(attrs = {})
       known, provided, unexpected = partition_attributes(attrs)
       @_provided_keys = provided.freeze
       @_unexpected_keys = unexpected.freeze
+      capture_raw_attributes(known)
       super(known)
     end
 

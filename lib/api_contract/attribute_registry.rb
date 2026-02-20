@@ -18,26 +18,39 @@ module ApiContract
   module AttributeRegistry
     # Custom options extracted from the +attribute+ call before delegating
     # to ActiveModel.
-    CUSTOM_OPTIONS = %i[optional description].freeze
+    CUSTOM_OPTIONS = %i[optional description array].freeze
 
     # Class-level methods mixed into the including class.
     module ClassMethods
       # Declares a typed attribute with optional custom metadata.
       #
-      # Extracts +optional:+ and +description:+ from the options hash,
-      # stores them in the attribute registry, and forwards the remaining
-      # options (including +default:+) to +ActiveModel::Attributes#attribute+.
+      # Extracts +optional:+, +description:+, and +array:+ from the
+      # options hash, stores them in the attribute registry, and forwards
+      # the remaining options to +ActiveModel::Attributes#attribute+.
+      #
+      # When +array:+ is provided with a type symbol, the attribute uses
+      # a {Types::TypedArray} parameterized with that element type. When
+      # +array: :permissive+ is used, the attribute accepts any array
+      # elements without coercion or validation.
       #
       # @param name [Symbol] the attribute name
       # @param type [Symbol] the ActiveModel type (e.g. +:string+, +:integer+)
       # @param options [Hash] attribute options
       # @option options [Boolean] :optional (false) whether the attribute is optional
       # @option options [String] :description human-readable description
+      # @option options [Symbol] :array element type for typed arrays, or +:permissive+
       # @option options [Object] :default default value (handled by ActiveModel)
       # @return [void]
       def attribute(name, type = :value, **options)
-        store_attribute_metadata(name, type, options)
-        super
+        element_type = options.delete(:array)
+        if element_type
+          array_type = build_array_type(element_type)
+          store_attribute_metadata(name, :array, options, element_type: element_type)
+          super(name, array_type, **options)
+        else
+          store_attribute_metadata(name, type, options)
+          super
+        end
       end
 
       # Returns the full metadata hash for all declared attributes.
@@ -66,19 +79,33 @@ module ApiContract
 
       private
 
+      # Builds the appropriate array type instance for the given element type.
+      #
+      # @param element_type [Symbol] +:permissive+ or an ActiveModel type symbol
+      # @return [Types::PermissiveArray, Types::TypedArray]
+      def build_array_type(element_type)
+        if element_type == :permissive
+          Types::PermissiveArray.new
+        else
+          Types::TypedArray.new(element_type: element_type)
+        end
+      end
+
       # Extracts custom options and stores metadata in the registry.
       #
       # @param name [Symbol] the attribute name
       # @param type [Symbol] the ActiveModel type
       # @param options [Hash] the full options hash (custom keys are deleted)
+      # @param element_type [Symbol, nil] the element type for typed arrays
       # @return [void]
-      def store_attribute_metadata(name, type, options)
+      def store_attribute_metadata(name, type, options, element_type: nil)
         attribute_registry[name.to_sym] = {
           type: type,
           optional: options.delete(:optional) || false,
           description: options.delete(:description),
           has_default: options.key?(:default),
-          default: options[:default]
+          default: options[:default],
+          element_type: element_type
         }
       end
 
