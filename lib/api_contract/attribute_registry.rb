@@ -18,7 +18,7 @@ module ApiContract
   module AttributeRegistry
     # Custom options extracted from the +attribute+ call before delegating
     # to ActiveModel.
-    CUSTOM_OPTIONS = %i[optional description array].freeze
+    CUSTOM_OPTIONS = %i[optional description array contract].freeze
 
     # Class-level methods mixed into the including class.
     module ClassMethods
@@ -42,15 +42,8 @@ module ApiContract
       # @option options [Object] :default default value (handled by ActiveModel)
       # @return [void]
       def attribute(name, type = :value, **options)
-        element_type = options.delete(:array)
-        if element_type
-          array_type = build_array_type(element_type)
-          store_attribute_metadata(name, :array, options, element_type: element_type)
-          super(name, array_type, **options)
-        else
-          store_attribute_metadata(name, type, options)
-          super
-        end
+        type = register_and_resolve_type(name, type, options)
+        super
       end
 
       # Returns the full metadata hash for all declared attributes.
@@ -79,6 +72,33 @@ module ApiContract
 
       private
 
+      # Extracts custom options, stores metadata, and returns the resolved
+      # ActiveModel type for the attribute.
+      #
+      # @param name [Symbol] the attribute name
+      # @param type [Symbol] the declared type
+      # @param options [Hash] the options hash (custom keys are deleted)
+      # @return [Object] the resolved ActiveModel type
+      def register_and_resolve_type(name, type, options)
+        contract_ref = options.delete(:contract)
+        element_type = options.delete(:array)
+        return resolve_contract_type(name, options, contract_ref) if contract_ref
+        return resolve_array_type(name, options, element_type) if element_type
+
+        store_attribute_metadata(name, type, options)
+        type
+      end
+
+      def resolve_contract_type(name, options, contract_ref)
+        store_attribute_metadata(name, :contract, options, contract: contract_ref)
+        ActiveModel::Type::Value.new
+      end
+
+      def resolve_array_type(name, options, element_type)
+        store_attribute_metadata(name, :array, options, element_type: element_type)
+        build_array_type(element_type)
+      end
+
       # Builds the appropriate array type instance for the given element type.
       #
       # @param element_type [Symbol] +:permissive+ or an ActiveModel type symbol
@@ -98,14 +118,15 @@ module ApiContract
       # @param options [Hash] the full options hash (custom keys are deleted)
       # @param element_type [Symbol, nil] the element type for typed arrays
       # @return [void]
-      def store_attribute_metadata(name, type, options, element_type: nil)
+      def store_attribute_metadata(name, type, options, element_type: nil, contract: nil)
         attribute_registry[name.to_sym] = {
           type: type,
           optional: options.delete(:optional) || false,
           description: options.delete(:description),
           has_default: options.key?(:default),
           default: options[:default],
-          element_type: element_type
+          element_type: element_type,
+          contract: contract
         }
       end
 

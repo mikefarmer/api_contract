@@ -20,18 +20,14 @@ module ApiContract
     include ActiveModel::Validations::Callbacks
     include AttributeRegistry
     include StrictCoercion
+    include SchemaValidation
     include Serialization
     include Immutability
     include Normalizers
+    include NestedContract
 
     # Constructs a new contract instance. Never raises an exception,
     # regardless of which attributes are passed.
-    #
-    # Symbolizes incoming keys, separates known from unexpected attributes,
-    # and tracks which keys were explicitly provided. When a key's value is
-    # +nil+ and the attribute has a +default:+, the key is omitted so that
-    # ActiveModel applies the default. Pre-cast values are captured so the
-    # strict coercion validator can detect silent fallback casts.
     #
     # @param attrs [Hash] the input attributes
     def initialize(attrs = {})
@@ -40,16 +36,13 @@ module ApiContract
       @_unexpected_keys = unexpected.freeze
       capture_raw_attributes(known)
       super(known)
+      instantiate_nested_contracts!
       apply_normalizers!
       freeze_contract!
     end
 
     # Constructs a contract from ActionController::Parameters or a plain hash,
     # calling {#schema_validate!} and data validations internally.
-    #
-    # Uses +to_unsafe_h+ when available (ActionController::Parameters) to
-    # bypass +permit+ requirements—the contract itself acts as the permit layer.
-    # Falls back to +to_h+ for plain hashes.
     #
     # @param params [ActionController::Parameters, Hash] the request parameters
     # @return [ApiContract::Base] a validated contract instance
@@ -66,10 +59,6 @@ module ApiContract
 
     # Constructs a contract from a JSON string, calling {#schema_validate!}
     # and data validations internally.
-    #
-    # Parses the JSON string and delegates to the same schema and data
-    # validation pipeline as {.from_params}. Malformed JSON raises
-    # +JSON::ParserError+ naturally.
     #
     # @param json [String] a JSON string
     # @return [ApiContract::Base] a validated contract instance
@@ -125,36 +114,6 @@ module ApiContract
       @_unexpected_keys
     end
 
-    # Returns a hash of schema errors. Keys are attribute names, values
-    # are arrays of error message strings.
-    #
-    # @return [Hash{Symbol => Array<String>}] schema error messages
-    def schema_errors
-      errors_hash = {}
-      missing_attribute_names.each { |name| errors_hash[name] = ['is missing'] }
-      @_unexpected_keys.each_key { |name| errors_hash[name] = ['is unexpected'] }
-      errors_hash
-    end
-
-    # Returns whether the contract's structure is valid (all required keys
-    # present, no unexpected keys).
-    #
-    # @return [Boolean] true if the schema is valid
-    def schema_valid?
-      schema_errors.empty?
-    end
-
-    # Validates the contract's structure, raising an exception if invalid.
-    # Missing attributes are checked before unexpected attributes.
-    #
-    # @return [void]
-    # @raise [ApiContract::MissingAttributeError] if required attributes are absent
-    # @raise [ApiContract::UnexpectedAttributeError] if unexpected attributes are present
-    def schema_validate!
-      validate_no_missing_attributes!
-      validate_no_unexpected_attributes!
-    end
-
     private
 
     # Partitions the input hash into known attributes, provided keys,
@@ -191,41 +150,6 @@ module ApiContract
       else
         unexpected[key] = value
       end
-    end
-
-    # Returns the names of required attributes that were not provided.
-    #
-    # @return [Array<Symbol>] missing required attribute names
-    def missing_attribute_names
-      self.class.required_attribute_names.reject { |name| @_provided_keys.include?(name) }
-    end
-
-    # Raises {MissingAttributeError} if any required attributes are missing.
-    #
-    # @return [void]
-    # @raise [ApiContract::MissingAttributeError]
-    def validate_no_missing_attributes!
-      missing = missing_attribute_names
-      return if missing.empty?
-
-      raise MissingAttributeError.new(
-        "Missing required attribute(s): #{missing.join(', ')}",
-        attributes: missing
-      )
-    end
-
-    # Raises {UnexpectedAttributeError} if any unexpected attributes are present.
-    #
-    # @return [void]
-    # @raise [ApiContract::UnexpectedAttributeError]
-    def validate_no_unexpected_attributes!
-      return if @_unexpected_keys.empty?
-
-      unexpected = @_unexpected_keys.keys
-      raise UnexpectedAttributeError.new(
-        "Unexpected attribute(s): #{unexpected.join(', ')}",
-        attributes: unexpected
-      )
     end
   end
 end
