@@ -20,6 +20,7 @@ module ApiContract
     include ActiveModel::Validations::Callbacks
     include AttributeRegistry
     include StrictCoercion
+    include Serialization
 
     # Constructs a new contract instance. Never raises an exception,
     # regardless of which attributes are passed.
@@ -39,24 +40,60 @@ module ApiContract
       super(known)
     end
 
-    # Constructs a contract from ActionController::Parameters, calling
-    # {#schema_validate!} internally.
+    # Constructs a contract from ActionController::Parameters or a plain hash,
+    # calling {#schema_validate!} and data validations internally.
     #
-    # @param _params [ActionController::Parameters] the request parameters
-    # @return [ApiContract::Base] a new immutable contract instance
-    # @raise [NotImplementedError] not yet implemented
-    def self.from_params(_params)
-      raise NotImplementedError
+    # Uses +to_unsafe_h+ when available (ActionController::Parameters) to
+    # bypass +permit+ requirements—the contract itself acts as the permit layer.
+    # Falls back to +to_h+ for plain hashes.
+    #
+    # @param params [ActionController::Parameters, Hash] the request parameters
+    # @return [ApiContract::Base] a validated contract instance
+    # @raise [ApiContract::MissingAttributeError] if required attributes are absent
+    # @raise [ApiContract::UnexpectedAttributeError] if unexpected attributes are present
+    # @raise [ApiContract::InvalidContractError] if data validations fail
+    def self.from_params(params)
+      attrs = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
+      instance = new(attrs)
+      instance.schema_validate!
+      validate_contract!(instance)
+      instance
     end
 
-    # Constructs a contract from a JSON string, calling
-    # {#schema_validate!} internally.
+    # Constructs a contract from a JSON string, calling {#schema_validate!}
+    # and data validations internally.
     #
-    # @param _json [String] a JSON string
-    # @return [ApiContract::Base] a new immutable contract instance
-    # @raise [NotImplementedError] not yet implemented
-    def self.from_json(_json)
-      raise NotImplementedError
+    # Parses the JSON string and delegates to the same schema and data
+    # validation pipeline as {.from_params}. Malformed JSON raises
+    # +JSON::ParserError+ naturally.
+    #
+    # @param json [String] a JSON string
+    # @return [ApiContract::Base] a validated contract instance
+    # @raise [JSON::ParserError] if the JSON string is malformed
+    # @raise [ApiContract::MissingAttributeError] if required attributes are absent
+    # @raise [ApiContract::UnexpectedAttributeError] if unexpected attributes are present
+    # @raise [ApiContract::InvalidContractError] if data validations fail
+    def self.from_json(json)
+      attrs = JSON.parse(json)
+      instance = new(attrs)
+      instance.schema_validate!
+      validate_contract!(instance)
+      instance
+    end
+
+    # Validates the contract instance and raises {InvalidContractError} if invalid.
+    #
+    # @param instance [ApiContract::Base] the contract to validate
+    # @return [void]
+    # @raise [ApiContract::InvalidContractError] if data validations fail
+    private_class_method def self.validate_contract!(instance)
+      return if instance.valid?
+
+      messages = instance.errors.map { |error| "#{error.attribute} #{error.message}" }
+      raise InvalidContractError.new(
+        "Contract validation failed: #{messages.join(', ')}",
+        contract: instance
+      )
     end
 
     # Returns the set of attribute keys that were explicitly provided

@@ -340,6 +340,122 @@ RSpec.describe ApiContract::Base do
     end
   end
 
+  describe '.from_params' do
+    let(:validated_class) do
+      klass = Class.new(described_class) do
+        attribute :name, :string
+        attribute :age,  :integer, optional: true
+        attribute :code, :string, default: '000'
+
+        validates :name, length: { minimum: 2 }
+      end
+      stub_const('ValidatedParamsContract', klass)
+    end
+
+    it 'accepts a plain hash and returns a valid contract' do
+      contract = validated_class.from_params(name: 'Alice')
+      expect(contract.name).to eq('Alice')
+    end
+
+    it 'applies defaults when constructing from params' do
+      contract = validated_class.from_params(name: 'Alice')
+      expect(contract.code).to eq('000')
+    end
+
+    it 'accepts an object responding to to_unsafe_h' do
+      params = Struct.new(:to_unsafe_h).new({ 'name' => 'Bob', 'age' => 25 })
+      contract = validated_class.from_params(params)
+      expect(contract.name).to eq('Bob')
+    end
+
+    it 'raises MissingAttributeError when required attrs are missing' do
+      expect { validated_class.from_params({}) }
+        .to raise_error(ApiContract::MissingAttributeError, /name/)
+    end
+
+    it 'raises UnexpectedAttributeError when extra attrs are present' do
+      expect { validated_class.from_params(name: 'Alice', foo: 'bar') }
+        .to raise_error(ApiContract::UnexpectedAttributeError, /foo/)
+    end
+
+    it 'raises InvalidContractError when data validations fail' do
+      expect { validated_class.from_params(name: 'A') }
+        .to raise_error(ApiContract::InvalidContractError)
+    end
+
+    it 'exposes the contract on InvalidContractError' do
+      validated_class.from_params(name: 'A')
+    rescue ApiContract::InvalidContractError => e
+      expect(e.contract).to be_a(described_class)
+    end
+
+    it 'handles optional attributes correctly' do
+      contract = validated_class.from_params(name: 'Alice')
+      expect(contract.age).to be_nil
+    end
+
+    it 'handles default values correctly' do
+      contract = validated_class.from_params(name: 'Alice', code: 'XYZ')
+      expect(contract.code).to eq('XYZ')
+    end
+  end
+
+  describe '.from_json' do
+    let(:validated_class) do
+      klass = Class.new(described_class) do
+        attribute :name, :string
+        attribute :age,  :integer, optional: true
+        attribute :code, :string, default: '000'
+
+        validates :name, length: { minimum: 2 }
+      end
+      stub_const('ValidatedJsonContract', klass)
+    end
+
+    it 'parses a JSON string and returns a valid contract' do
+      contract = validated_class.from_json('{"name": "Alice", "age": 30}')
+      expect(contract.name).to eq('Alice')
+    end
+
+    it 'coerces JSON values to declared types' do
+      contract = validated_class.from_json('{"name": "Alice", "age": 30}')
+      expect(contract.age).to eq(30)
+    end
+
+    it 'raises JSON::ParserError for malformed JSON' do
+      expect { validated_class.from_json('not json') }
+        .to raise_error(JSON::ParserError)
+    end
+
+    it 'raises MissingAttributeError when required attrs are missing' do
+      expect { validated_class.from_json('{}') }
+        .to raise_error(ApiContract::MissingAttributeError, /name/)
+    end
+
+    it 'raises UnexpectedAttributeError when extra attrs are present' do
+      expect { validated_class.from_json('{"name": "Alice", "foo": "bar"}') }
+        .to raise_error(ApiContract::UnexpectedAttributeError, /foo/)
+    end
+
+    it 'raises InvalidContractError when data validations fail' do
+      expect { validated_class.from_json('{"name": "A"}') }
+        .to raise_error(ApiContract::InvalidContractError)
+    end
+
+    it 'coerces types from JSON strings' do
+      klass = Class.new(described_class) do
+        attribute :count, :integer
+      end
+      contract = klass.from_json('{"count": 42}')
+      expect(contract.count).to eq(42)
+    end
+
+    it 'applies default values' do
+      contract = validated_class.from_json('{"name": "Alice"}')
+      expect(contract.code).to eq('000')
+    end
+  end
+
   describe 'permissive_hash attribute' do
     let(:hash_contract_class) do
       Class.new(described_class) do
@@ -375,6 +491,188 @@ RSpec.describe ApiContract::Base do
     it 'returns nil when not provided' do
       contract = hash_contract_class.new(name: 'Alice')
       expect(contract.metadata).to be_nil
+    end
+  end
+
+  describe '#attributes' do
+    let(:ordered_class) do
+      Class.new(described_class) do
+        attribute :z_field, :string
+        attribute :a_field, :string
+        attribute :m_field, :string
+      end
+    end
+
+    it 'returns an array of declared attribute names as symbols' do
+      contract = contract_class.new(name: 'Alice')
+      expect(contract.attributes).to eq(%i[name age code])
+    end
+
+    it 'preserves declaration order' do
+      contract = ordered_class.new(z_field: 'z', a_field: 'a', m_field: 'm')
+      expect(contract.attributes).to eq(%i[z_field a_field m_field])
+    end
+  end
+
+  describe '#values' do
+    it 'returns attribute values in declaration order' do
+      contract = contract_class.new(name: 'Alice', age: 30)
+      expect(contract.values).to eq(['Alice', 30, '000'])
+    end
+
+    it 'includes nil for unprovided optional attributes' do
+      contract = contract_class.new(name: 'Alice')
+      expect(contract.values).to eq(['Alice', nil, '000'])
+    end
+  end
+
+  describe '#to_h' do
+    it 'returns a symbolized hash of declared attributes' do
+      contract = contract_class.new(name: 'Alice', age: 30)
+      expect(contract.to_h).to eq(name: 'Alice', age: 30, code: '000')
+    end
+
+    it 'excludes optional attributes with nil values' do
+      contract = contract_class.new(name: 'Alice')
+      expect(contract.to_h).not_to have_key(:age)
+    end
+
+    it 'includes optional attributes with non-nil values' do
+      contract = contract_class.new(name: 'Alice', age: 25)
+      expect(contract.to_h).to have_key(:age)
+    end
+
+    it 'does not include unexpected attributes' do
+      contract = contract_class.new(name: 'Alice', foo: 'bar')
+      expect(contract.to_h).not_to have_key(:foo)
+    end
+
+    it 'includes default values' do
+      contract = contract_class.new(name: 'Alice')
+      expect(contract.to_h[:code]).to eq('000')
+    end
+  end
+
+  describe '#as_json' do
+    let(:validated_class) do
+      klass = Class.new(described_class) do
+        attribute :name, :string
+        attribute :age, :integer, optional: true
+
+        validates :name, length: { minimum: 2 }
+      end
+      stub_const('AsJsonContract', klass)
+    end
+
+    it 'returns a string-keyed hash' do
+      contract = validated_class.new(name: 'Alice', age: 30)
+      expect(contract.as_json).to eq('name' => 'Alice', 'age' => 30)
+    end
+
+    it 'excludes optional nil attributes' do
+      contract = validated_class.new(name: 'Alice')
+      expect(contract.as_json).not_to have_key('age')
+    end
+
+    it 'raises InvalidContractError when data validations fail' do
+      contract = validated_class.new(name: 'A')
+      expect { contract.as_json }.to raise_error(ApiContract::InvalidContractError)
+    end
+
+    it 'raises InvalidContractError when schema is invalid' do
+      contract = validated_class.new({})
+      expect { contract.as_json }.to raise_error(ApiContract::InvalidContractError)
+    end
+
+    it 'exposes the contract on the error' do
+      contract = validated_class.new(name: 'A')
+      contract.as_json
+    rescue ApiContract::InvalidContractError => e
+      expect(e.contract).to eq(contract)
+    end
+  end
+
+  describe '#to_json' do
+    let(:validated_class) do
+      klass = Class.new(described_class) do
+        attribute :name, :string
+        attribute :count, :integer
+
+        validates :name, length: { minimum: 2 }
+      end
+      stub_const('ToJsonContract', klass)
+    end
+
+    it 'returns a JSON string' do
+      contract = validated_class.new(name: 'Alice', count: 5)
+      parsed = JSON.parse(contract.to_json)
+      expect(parsed).to eq('name' => 'Alice', 'count' => 5)
+    end
+
+    it 'raises InvalidContractError when invalid' do
+      contract = validated_class.new(name: 'A', count: 5)
+      expect { contract.to_json }.to raise_error(ApiContract::InvalidContractError)
+    end
+
+    it 'raises InvalidContractError when schema is invalid' do
+      contract = validated_class.new({})
+      expect { contract.to_json }.to raise_error(ApiContract::InvalidContractError)
+    end
+  end
+
+  describe '#as_camelcase_json' do
+    let(:camel_class) do
+      klass = Class.new(described_class) do
+        attribute :first_name, :string
+        attribute :last_name, :string
+        attribute :home_address_line, :string, optional: true
+      end
+      stub_const('CamelCaseContract', klass)
+    end
+
+    it 'returns string-keyed hash with camelCase keys' do
+      contract = camel_class.new(first_name: 'Alice', last_name: 'Smith')
+      result = contract.as_camelcase_json
+      expect(result).to eq('firstName' => 'Alice', 'lastName' => 'Smith')
+    end
+
+    it 'converts multi-underscore keys to camelCase' do
+      contract = camel_class.new(first_name: 'Alice', last_name: 'Smith', home_address_line: '123 Main')
+      expect(contract.as_camelcase_json).to have_key('homeAddressLine')
+    end
+
+    it 'excludes optional nil attributes' do
+      contract = camel_class.new(first_name: 'Alice', last_name: 'Smith')
+      expect(contract.as_camelcase_json).not_to have_key('homeAddressLine')
+    end
+
+    it 'raises InvalidContractError when schema is invalid' do
+      contract = camel_class.new({})
+      expect { contract.as_camelcase_json }.to raise_error(ApiContract::InvalidContractError)
+    end
+
+    it 'raises InvalidContractError when data validations fail' do
+      contract = camel_class.new(first_name: 'A', last_name: 'S')
+      camel_class.validates :first_name, length: { minimum: 5 }
+      expect { contract.as_camelcase_json }.to raise_error(ApiContract::InvalidContractError)
+    end
+  end
+
+  describe '#dig' do
+    it 'retrieves nested values through permissive_hash' do
+      klass = Class.new(described_class) do
+        attribute :data, :permissive_hash
+      end
+      contract = klass.new(data: { nested: { deep: 'value' } })
+      expect(contract.dig(:data, :nested, :deep)).to eq('value')
+    end
+
+    it 'returns nil when nested key path does not exist' do
+      klass = Class.new(described_class) do
+        attribute :data, :permissive_hash
+      end
+      contract = klass.new(data: { a: 1 })
+      expect(contract.dig(:data, :missing, :key)).to be_nil
     end
   end
 end

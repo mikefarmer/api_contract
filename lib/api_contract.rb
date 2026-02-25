@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'active_model'
+require 'json'
 
 require_relative 'api_contract/version'
 require_relative 'api_contract/errors'
@@ -10,6 +11,7 @@ require_relative 'api_contract/types/permissive_hash'
 require_relative 'api_contract/types/typed_array'
 require_relative 'api_contract/attribute_registry'
 require_relative 'api_contract/strict_coercion'
+require_relative 'api_contract/serialization'
 require_relative 'api_contract/base'
 
 # Typed, validated, immutable data transfer objects with Rails integration.
