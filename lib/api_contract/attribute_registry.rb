@@ -126,7 +126,7 @@ module ApiContract
       # @param name [Symbol] the attribute name
       # @param type [Symbol] the ActiveModel type
       # @param options [Hash] the full options hash (custom keys are deleted)
-      # @param element_type [Symbol, nil] the element type for typed arrays
+      # @param extra [Hash] additional metadata entries (e.g. element_type, contract, with)
       # @return [void]
       def store_attribute_metadata(name, type, options, **extra)
         attribute_registry[name.to_sym] = build_metadata(type, options).merge(extra)
@@ -157,7 +157,10 @@ module ApiContract
       end
     end
 
-    # @private
+    # Extends the including class with {ClassMethods}.
+    #
+    # @param base [Class] the including class
+    # @return [void]
     def self.included(base)
       base.extend(ClassMethods)
     end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module ApiContract
+  # Custom ActiveModel type classes for arrays, hashes, and coercion.
   module Types
     # A parameterized array type that casts each element using an
     # ActiveModel type. Instances are created per-attribute since each

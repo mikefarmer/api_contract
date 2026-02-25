@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>
+  File: README
+  
+    &mdash; Documentation by YARD 0.9.38
+  
+</title>
+
+  <link rel="stylesheet" href="css/style.css" type="text/css" />
+
+  <link rel="stylesheet" href="css/common.css" type="text/css" />
+
+<script type="text/javascript">
+  pathId = "README";
+  relpath = '';
+</script>
+
+
+  <script type="text/javascript" charset="utf-8" src="js/jquery.js"></script>
+
+  <script type="text/javascript" charset="utf-8" src="js/app.js"></script>
+
+
+  </head>
+  <body>
+    <div class="nav_wrap">
+      <iframe id="nav" src="file_list.html?1"></iframe>
+      <div id="resizer"></div>
+    </div>
+
+    <div id="main" tabindex="-1">
+      <div id="header">
+        <div id="menu">
+  
+    <a href="_index.html">Index</a> &raquo; 
+    <span class="title">File: README</span>
+  
+</div>
+
+        <div id="search">
+  
+    <a class="full_list_link" id="class_list_link"
+        href="class_list.html">
+
+        <svg width="24" height="24">
+          <rect x="0" y="4" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="12" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="20" width="24" height="4" rx="1" ry="1"></rect>
+        </svg>
+    </a>
+  
+</div>
+        <div class="clear"></div>
+      </div>
+
+      <div id="content"><div id='filecontents'>
+<h1 id="label-ApiContract">ApiContract</h1>
+
+<p>A Ruby gem for defining typed, validated, immutable data transfer objects (DTOs) with first-class Rails integration. Contracts are a drop-in replacement for <code>ActionController::Parameters</code> (StrongParameters) that bring type coercion, structural validation, and immutability to controller boundaries — distinct from ActiveRecord validations, which guard persistence.</p>
+
+<h2 id="label-Installation">Installation</h2>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_gem'>gem</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>api_contract</span><span class='tstring_end'>&#39;</span></span>
+</code></pre>
+
+<h2 id="label-Overview">Overview</h2>
+
+<p>Contracts describe the shape of data crossing boundaries in your application — incoming API parameters, outgoing API responses, service inputs and outputs. They provide:</p>
+<ul><li>
+<p><strong>Drop-in replacement for StrongParameters</strong> — <code>from_params</code> replaces <code>params.require(...).permit(...)</code> with a schema-enforced, typed contract</p>
+</li><li>
+<p><strong>Type coercion</strong> via ActiveModel::Attributes</p>
+</li><li>
+<p><strong>Structural validation</strong> (schema-level: missing or unexpected keys)</p>
+</li><li>
+<p><strong>Data validation</strong> (value-level: format, inclusion, length)</p>
+</li><li>
+<p><strong>Immutability by default</strong> with explicit, controlled mutation paths</p>
+</li><li>
+<p><strong>OpenAPI schema generation</strong> — generate JSON Schema from any contract, integrate with RSwag, or build a custom generator</p>
+</li><li>
+<p><strong>Nested contract composition</strong></p>
+</li></ul>
+
+<h3 id="label-Replacing+StrongParameters">Replacing StrongParameters</h3>
+
+<p>StrongParameters protects against mass assignment but does nothing to enforce types, validate values, or document the expected shape. Contracts replace the entire <code>require</code>/<code>permit</code> pattern with a single, reusable, self-documenting class:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Before: StrongParameters
+</span><span class='kw'>def</span> <span class='id identifier rubyid_user_params'>user_params</span>
+  <span class='id identifier rubyid_params'>params</span><span class='period'>.</span><span class='id identifier rubyid_require'>require</span><span class='lparen'>(</span><span class='symbol'>:user</span><span class='rparen'>)</span><span class='period'>.</span><span class='id identifier rubyid_permit'>permit</span><span class='lparen'>(</span><span class='symbol'>:name</span><span class='comma'>,</span> <span class='symbol'>:email</span><span class='comma'>,</span> <span class='symbol'>:age</span><span class='rparen'>)</span>
+<span class='kw'>end</span>
+
+<span class='comment'># After: ApiContract
+</span><span class='id identifier rubyid_user_contract'>user_contract</span> <span class='op'>=</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_from_params'>from_params</span><span class='lparen'>(</span><span class='id identifier rubyid_params'>params</span><span class='rparen'>)</span>
+</code></pre>
+
+<p><code>from_params</code> calls <code>schema_validate!</code> internally, raising immediately if the shape is wrong (<code>MissingAttributeError</code>, <code>UnexpectedAttributeError</code>). It then coerces all values to their declared types, runs normalizers, and returns a typed object ready to pass to a service. Calling <code>to_params</code> on any contract returns a pre-permitted <code>ActionController::Parameters</code> instance, making Contracts fully compatible with existing code that expects StrongParameters downstream.</p>
+
+<h2 id="label-Defining+Contracts">Defining Contracts</h2>
+
+<p>Create a base contract for shared constants and behavior, then inherit from it:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># app/contracts/application_contract.rb
+</span><span class='kw'>class</span> <span class='const'>ApplicationContract</span> <span class='op'>&lt;</span> <span class='const'><span class='object_link'><a href="ApiContract.html" title="ApiContract (module)">ApiContract</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="ApiContract/Base.html" title="ApiContract::Base (class)">Base</a></span></span>
+  <span class='const'>EMAIL_REGEX</span> <span class='op'>=</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z</span><span class='regexp_end'>/i</span></span>
+<span class='kw'>end</span>
+
+<span class='comment'># app/contracts/user_contract.rb
+</span><span class='kw'>class</span> <span class='const'>UserContract</span> <span class='op'>&lt;</span> <span class='const'>ApplicationContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:name</span><span class='comma'>,</span>               <span class='symbol'>:string</span><span class='comma'>,</span>          <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User&#39;s full name</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:age</span><span class='comma'>,</span>                <span class='symbol'>:integer</span><span class='comma'>,</span>         <span class='label'>optional:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User&#39;s age</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:email</span><span class='comma'>,</span>              <span class='symbol'>:string</span><span class='comma'>,</span>          <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Email address</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:home_address</span><span class='comma'>,</span>       <span class='label'>contract:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>AddressContract</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>User&#39;s home address</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:health_information</span><span class='comma'>,</span> <span class='symbol'>:permissive_hash</span><span class='comma'>,</span>    <span class='label'>optional:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Any health information</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:favorite_foods</span><span class='comma'>,</span>     <span class='label'>array:</span> <span class='symbol'>:string</span><span class='comma'>,</span>      <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Favorite foods, max 3</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:random_stuff</span><span class='comma'>,</span>       <span class='label'>array:</span> <span class='symbol'>:permissive</span><span class='comma'>,</span>  <span class='label'>optional:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Any array data</span><span class='tstring_end'>&quot;</span></span>
+
+  <span class='id identifier rubyid_normalizes'>normalizes</span> <span class='symbol'>:email</span><span class='comma'>,</span> <span class='label'>with:</span> <span class='tlambda'>-&gt;</span><span class='lparen'>(</span><span class='id identifier rubyid_email'>email</span><span class='rparen'>)</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_email'>email</span><span class='period'>.</span><span class='id identifier rubyid_strip'>strip</span><span class='period'>.</span><span class='id identifier rubyid_downcase'>downcase</span> <span class='rbrace'>}</span>
+
+  <span class='id identifier rubyid_validates'>validates</span> <span class='symbol'>:favorite_foods</span><span class='comma'>,</span> <span class='label'>max_length:</span> <span class='int'>3</span><span class='comma'>,</span> <span class='label'>min_length:</span> <span class='int'>0</span>
+  <span class='id identifier rubyid_validates'>validates</span> <span class='symbol'>:email</span><span class='comma'>,</span> <span class='label'>format:</span> <span class='const'>EMAIL_REGEX</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<h3 id="label-Attribute+Options">Attribute Options</h3>
+
+<table role="table">
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>‘type` (positional)</td>
+<td>ActiveModel type or special type (‘:string`, `:integer`, `:permissive_hash`, etc.)</td>
+</tr>
+<tr>
+<td>‘optional: true`</td>
+<td>Attribute may be absent; no ‘MissingAttributeError` is raised and it is excluded from serialization when nil</td>
+</tr>
+<tr>
+<td>‘default:`</td>
+<td>Value used when the attribute is absent or explicitly ‘nil`; implies presence, suppresses `MissingAttributeError`</td>
+</tr>
+<tr>
+<td>‘description:`</td>
+<td>Human-readable description, included in OpenAPI schema output</td>
+</tr>
+<tr>
+<td>‘array:`</td>
+<td>Declares a typed array attribute (e.g., ‘array: :string`)</td>
+</tr>
+<tr>
+<td>‘contract:`</td>
+<td>Declares a nested contract by class or string reference</td>
+</tr>
+</tbody>
+</table>
+
+<p>Attributes are <strong>required by default</strong>. Omitting <code>optional: true</code> and providing no <code>default</code> means the attribute must be present during <code>from_params</code> or <code>from_json</code> deserialization.</p>
+
+<h2 id="label-Instantiation">Instantiation</h2>
+
+<h3 id="label-.new+-E2-80-94+never+raises"><code>.new</code> — never raises</h3>
+
+<p><code>.new</code> <strong>never raises an exception</strong>, regardless of what attributes are passed. It is safe to use for internal construction, testing, and anywhere you need to inspect validity yourself.</p>
+
+<p>Two separate validity checks are available after construction:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_attrs'>attrs</span><span class='rparen'>)</span>
+
+<span class='comment'># Schema validity — are the right keys present and no unexpected keys?
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_schema_valid?'>schema_valid?</span>  <span class='comment'># =&gt; true / false
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_schema_errors'>schema_errors</span>  <span class='comment'># =&gt; { name: [&quot;is missing&quot;] }
+</span>
+<span class='comment'># Data validity — do the values pass validations?
+</span><span class='comment'># Only meaningful when schema_valid? is true
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_valid?'>valid?</span>   <span class='comment'># =&gt; true / false
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_errors'>errors</span>   <span class='comment'># =&gt; { email: [&quot;is invalid&quot;] }
+</span></code></pre>
+
+<p><code>valid?</code> pertains exclusively to ActiveModel validations and type coercion. It says nothing about whether the contract’s structure is correct. Always check <code>schema_valid?</code> before relying on <code>valid?</code>.</p>
+
+<p>To raise on schema errors, call <code>schema_validate!</code> explicitly:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_schema_validate!'>schema_validate!</span> <span class='comment'># =&gt; raises ApiContract::MissingAttributeError or ApiContract::UnexpectedAttributeError
+</span></code></pre>
+
+<h3 id="label-from_params+and+from_json+-E2-80-94+strict+deserialization"><code>from_params</code> and <code>from_json</code> — strict deserialization</h3>
+
+<p><code>from_params</code> and <code>from_json</code> call <code>schema_validate!</code> internally. They raise immediately if the shape is wrong, then return the contract:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Calls schema_validate! internally
+</span><span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_from_params'>from_params</span><span class='lparen'>(</span><span class='id identifier rubyid_params'>params</span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_from_json'>from_json</span><span class='lparen'>(</span><span class='id identifier rubyid_json_string'>json_string</span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_from_camelized_json'>from_camelized_json</span><span class='lparen'>(</span><span class='id identifier rubyid_json_string'>json_string</span><span class='rparen'>)</span> <span class='comment'># mirrors as_camelcase_json; keys are converted from camelCase to snake_case before deserialization
+</span></code></pre>
+
+<p>These are the appropriate entry points at controller and API boundaries where structural correctness must be enforced before the data is used.</p>
+
+<h2 id="label-Rails+Integration">Rails Integration</h2>
+
+<h3 id="label-Controllers">Controllers</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>UsersController</span> <span class='op'>&lt;</span> <span class='const'>ApplicationController</span>
+  <span class='kw'>def</span> <span class='id identifier rubyid_create'>create</span>
+    <span class='id identifier rubyid_user_contract'>user_contract</span> <span class='op'>=</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_from_params'>from_params</span><span class='lparen'>(</span><span class='id identifier rubyid_params'>params</span><span class='rparen'>)</span>
+    <span class='id identifier rubyid_user'>user</span> <span class='op'>=</span> <span class='const'>CreateUserService</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_user_contract'>user_contract</span><span class='rparen'>)</span>
+    <span class='id identifier rubyid_render'>render</span> <span class='label'>json:</span> <span class='const'>UserResponseContract</span><span class='period'>.</span><span class='id identifier rubyid_from_model'>from_model</span><span class='lparen'>(</span><span class='id identifier rubyid_user'>user</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
+  <span class='comment'># Schema violations — wrong shape, missing or unexpected keys
+</span>  <span class='id identifier rubyid_rescue_from'>rescue_from</span> <span class='const'><span class='object_link'><a href="ApiContract.html" title="ApiContract (module)">ApiContract</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="ApiContract/MissingAttributeError.html" title="ApiContract::MissingAttributeError (class)">MissingAttributeError</a></span></span><span class='comma'>,</span> <span class='const'><span class='object_link'><a href="ApiContract.html" title="ApiContract (module)">ApiContract</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="ApiContract/UnexpectedAttributeError.html" title="ApiContract::UnexpectedAttributeError (class)">UnexpectedAttributeError</a></span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_e'>e</span><span class='op'>|</span>
+    <span class='id identifier rubyid_render'>render</span> <span class='label'>json:</span> <span class='const'>ApiErrorResponseContract</span><span class='period'>.</span><span class='id identifier rubyid_from_error'>from_error</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span><span class='comma'>,</span> <span class='label'>status:</span> <span class='symbol'>:bad_request</span>
+  <span class='kw'>end</span>
+
+  <span class='comment'># Valid shape, invalid data — failed validations or type coercion errors
+</span>  <span class='id identifier rubyid_rescue_from'>rescue_from</span> <span class='const'><span class='object_link'><a href="ApiContract.html" title="ApiContract (module)">ApiContract</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="ApiContract/InvalidContractError.html" title="ApiContract::InvalidContractError (class)">InvalidContractError</a></span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_e'>e</span><span class='op'>|</span>
+    <span class='id identifier rubyid_response_contract'>response_contract</span> <span class='op'>=</span> <span class='const'>ApiErrorResponseContract</span><span class='period'>.</span><span class='id identifier rubyid_from_error'>from_error</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
+    <span class='id identifier rubyid_render'>render</span> <span class='label'>json:</span> <span class='id identifier rubyid_response_contract'>response_contract</span><span class='comma'>,</span> <span class='label'>status:</span> <span class='id identifier rubyid_response_contract'>response_contract</span><span class='period'>.</span><span class='id identifier rubyid_status'>status</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>The two rescue paths reflect a meaningful distinction: schema violations indicate a programming error or malformed client request, while <code>InvalidContractError</code> indicates data that passed structural inspection but failed validation rules.</p>
+
+<h3 id="label-Response+Contracts">Response Contracts</h3>
+
+<p>Use contracts to shape outgoing responses as well as incoming requests:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>UserResponseContract</span> <span class='op'>&lt;</span> <span class='const'>ApplicationContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:id</span><span class='comma'>,</span> <span class='symbol'>:string</span><span class='comma'>,</span> <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>UUID of the user</span><span class='tstring_end'>&quot;</span></span>
+
+  <span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_from_model'>from_model</span><span class='lparen'>(</span><span class='id identifier rubyid_user'>user</span><span class='rparen'>)</span>
+    <span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='label'>id:</span> <span class='id identifier rubyid_user'>user</span><span class='period'>.</span><span class='id identifier rubyid_id'>id</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<h2 id="label-Serialization">Serialization</h2>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_to_h'>to_h</span>                 <span class='comment'># =&gt; { name: &quot;Bob&quot;, age: 25, ... }
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_as_json'>as_json</span>              <span class='comment'># =&gt; { &quot;name&quot; =&gt; &quot;Bob&quot;, ... }         raises InvalidContractError if invalid
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_to_json'>to_json</span>              <span class='comment'># =&gt; JSON string                       raises InvalidContractError if invalid
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_as_camelcase_json'>as_camelcase_json</span>    <span class='comment'># =&gt; { &quot;firstName&quot; =&gt; ... }           raises InvalidContractError if invalid
+</span>
+<span class='comment'># Deserialize camelCase JSON — mirrors as_camelcase_json
+</span><span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_from_camelized_json'>from_camelized_json</span><span class='lparen'>(</span><span class='id identifier rubyid_json_string'>json_string</span><span class='rparen'>)</span>
+
+<span class='comment'># StrongParameters interop
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_to_params'>to_params</span>            <span class='comment'># =&gt; ActionController::Parameters (pre-permitted)
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_to_params'>to_params</span><span class='period'>.</span><span class='id identifier rubyid_permitted?'>permitted?</span> <span class='comment'># =&gt; true if schema_valid?, false otherwise
+</span></code></pre>
+
+<p>Serialization methods raise <code>ApiContract::InvalidContractError</code> when called on an invalid contract. Use <code>valid?</code> and <code>errors</code> to inspect state before serializing, or rescue the exception at the appropriate boundary.</p>
+
+<p><code>to_params</code> returns a pre-permitted <code>ActionController::Parameters</code> instance. The structure mirrors whatever Rails’ <code>ActionController::Parameters</code> would produce natively for the same data — nested contracts become nested <code>ActionController::Parameters</code> objects, and typed arrays become arrays of the appropriate type. This ensures that any code consuming the result behaves identically to code that received the params directly from a controller, with no further <code>permit</code> calls required.</p>
+
+<h3 id="label-Traversal">Traversal</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_attributes'>attributes</span>  <span class='comment'># =&gt; [:name, :age, :email, :home_address]
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_values'>values</span>      <span class='comment'># =&gt; [&quot;Bob&quot;, 25, &quot;bob@example.com&quot;, ...]
+</span>
+<span class='comment'># dig delegates to to_h.dig
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_dig'>dig</span><span class='lparen'>(</span><span class='symbol'>:home_address</span><span class='comma'>,</span> <span class='symbol'>:street</span><span class='comma'>,</span> <span class='int'>0</span><span class='rparen'>)</span> <span class='comment'># =&gt; &quot;123 Main St&quot;
+</span></code></pre>
+
+<h2 id="label-Immutability">Immutability</h2>
+
+<p>Contracts created with <code>new</code>, <code>from_params</code>, or <code>from_json</code> are immutable by default:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_read_only?'>read_only?</span> <span class='comment'># =&gt; true
+</span></code></pre>
+
+<h3 id="label-Controlled+Mutation">Controlled Mutation</h3>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Clone with changed attributes — returns a new immutable contract
+</span><span class='comment'># Calls schema_validate! internally; raises ApiContract::MissingAttributeError if structurally invalid
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_clone'>clone</span><span class='lparen'>(</span><span class='label'>age:</span> <span class='int'>26</span><span class='rparen'>)</span>
+
+<span class='comment'># Merge two contracts — deep merges the argument into the receiver, argument always wins
+</span><span class='comment'># By default calls schema_validate! and valid? on the result; both can be disabled
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_merge'>merge</span><span class='lparen'>(</span><span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='label'>age:</span> <span class='int'>26</span><span class='rparen'>)</span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_merge'>merge</span><span class='lparen'>(</span><span class='id identifier rubyid_other'>other</span><span class='comma'>,</span> <span class='label'>strict:</span> <span class='kw'>false</span><span class='rparen'>)</span>   <span class='comment'># skip schema_validate!
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_merge'>merge</span><span class='lparen'>(</span><span class='id identifier rubyid_other'>other</span><span class='comma'>,</span> <span class='label'>validate:</span> <span class='kw'>false</span><span class='rparen'>)</span> <span class='comment'># skip valid?
+</span>
+<span class='comment'># dup creates a mutable copy with attribute setters enabled
+</span><span class='id identifier rubyid_mutable'>mutable</span> <span class='op'>=</span> <span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_dup'>dup</span>
+<span class='id identifier rubyid_mutable'>mutable</span><span class='period'>.</span><span class='id identifier rubyid_read_only?'>read_only?</span> <span class='comment'># =&gt; false
+</span><span class='id identifier rubyid_mutable'>mutable</span><span class='period'>.</span><span class='id identifier rubyid_age'>age</span> <span class='op'>=</span> <span class='int'>26</span>
+
+<span class='comment'># mutate is like clone but with required arguments — the changed attributes must be explicitly provided
+</span><span class='comment'># Calls schema_validate! internally; raises ApiContract::MissingAttributeError if required attrs are absent
+</span><span class='id identifier rubyid_mutable'>mutable</span><span class='period'>.</span><span class='id identifier rubyid_mutate'>mutate</span><span class='lparen'>(</span><span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Jimmy</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+</code></pre>
+
+<p>The mutation surface is deliberately narrow. <code>dup</code> is the escape hatch to mutable state; <code>clone</code> and <code>merge</code> restore immutability. This prevents accidental state drift when contracts are passed across service boundaries.</p>
+
+<p><strong>Note:</strong> <code>clone</code> and <code>mutate</code> call <code>schema_validate!</code> internally. If a mutable contract has required attributes set to nil, <code>clone</code> or <code>mutate</code> will raise <code>ApiContract::MissingAttributeError</code>.</p>
+
+<p><strong><code>merge</code> behavior:</strong> <code>merge</code> uses <code>deep_merge</code> under the hood — nested contracts are merged recursively, not replaced wholesale. The argument’s values always win on conflict, including <code>nil</code>. A <code>nil</code> value in the argument will overwrite a populated value in the receiver. By default, <code>merge</code> calls both <code>schema_validate!</code> (<code>strict: true</code>) and <code>valid?</code> (<code>validate: true</code>) on the result; either can be disabled via keyword arguments when you need partial or intermediate states.</p>
+
+<h2 id="label-Validation+and+Normalizers">Validation and Normalizers</h2>
+
+<p>Contracts support the full ActiveModel Validations and Normalizers API:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>AddressContract</span> <span class='op'>&lt;</span> <span class='const'>ApplicationContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:state</span><span class='comma'>,</span> <span class='symbol'>:string</span>
+
+  <span class='id identifier rubyid_normalizes'>normalizes</span> <span class='symbol'>:email</span><span class='comma'>,</span> <span class='label'>with:</span> <span class='tlambda'>-&gt;</span><span class='lparen'>(</span><span class='id identifier rubyid_email'>email</span><span class='rparen'>)</span> <span class='tlambeg'>{</span> <span class='id identifier rubyid_email'>email</span><span class='period'>.</span><span class='id identifier rubyid_strip'>strip</span><span class='period'>.</span><span class='id identifier rubyid_downcase'>downcase</span> <span class='rbrace'>}</span>
+
+  <span class='id identifier rubyid_validates'>validates</span> <span class='symbol'>:state</span><span class='comma'>,</span> <span class='label'>inclusion:</span> <span class='lbrace'>{</span> <span class='label'>in:</span> <span class='const'>CUSTOMER_STATES</span> <span class='rbrace'>}</span>
+  <span class='id identifier rubyid_validates'>validates</span> <span class='symbol'>:postal_code</span><span class='comma'>,</span> <span class='label'>format:</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A\d{5}(-\d{4})?\z</span><span class='regexp_end'>/</span></span>
+
+  <span class='id identifier rubyid_after_validation'>after_validation</span> <span class='symbol'>:normalize_coordinates</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_normalize_coordinates'>normalize_coordinates</span>
+    <span class='id identifier rubyid_coordinates'>coordinates</span> <span class='op'>=</span> <span class='const'>Geocoder</span><span class='period'>.</span><span class='id identifier rubyid_coordinates'>coordinates</span><span class='lparen'>(</span><span class='id identifier rubyid_values'>values</span><span class='period'>.</span><span class='id identifier rubyid_join'>join</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'> </span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span><span class='rparen'>)</span>
+    <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_latitude'>latitude</span>  <span class='op'>=</span> <span class='id identifier rubyid_coordinates'>coordinates</span><span class='lbracket'>[</span><span class='int'>0</span><span class='rbracket'>]</span> <span class='kw'>if</span> <span class='id identifier rubyid_coordinates'>coordinates</span><span class='period'>.</span><span class='id identifier rubyid_present?'>present?</span>
+    <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_longitude'>longitude</span> <span class='op'>=</span> <span class='id identifier rubyid_coordinates'>coordinates</span><span class='lbracket'>[</span><span class='int'>1</span><span class='rbracket'>]</span> <span class='kw'>if</span> <span class='id identifier rubyid_coordinates'>coordinates</span><span class='period'>.</span><span class='id identifier rubyid_present?'>present?</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>ActiveModel callbacks (<code>before_validation</code>, <code>after_validation</code>, etc.) are supported. This is particularly useful for derived attributes like geocoded coordinates that depend on other fields being valid first.</p>
+
+<p>Nested contract validations run recursively. A parent contract is only valid when all nested contracts are also valid. Nested errors are propagated to the parent’s error hash with flattened dot-notation keys:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_attrs'>attrs</span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_valid?'>valid?</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_errors'>errors</span>
+<span class='comment'># =&gt; {
+</span><span class='comment'>#   :&quot;home_address.city&quot;        =&gt; [&quot;can&#39;t be blank&quot;],
+</span><span class='comment'>#   :&quot;home_address.postal_code&quot; =&gt; [&quot;is invalid&quot;]
+</span><span class='comment'># }
+</span></code></pre>
+
+<h2 id="label-Default+Values">Default Values</h2>
+
+<p>A <code>default:</code> suppresses <code>MissingAttributeError</code> and is applied when the attribute is absent or explicitly <code>nil</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApiErrorResponseContract</span> <span class='op'>&lt;</span> <span class='const'>ApiErrorContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:code</span><span class='comma'>,</span>   <span class='symbol'>:string</span><span class='comma'>,</span>  <span class='label'>default:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>001</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:status</span><span class='comma'>,</span> <span class='symbol'>:integer</span><span class='comma'>,</span> <span class='label'>default:</span> <span class='int'>422</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>ApiErrorResponseContract</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='lbrace'>{</span><span class='rbrace'>}</span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_code'>code</span>   <span class='comment'># =&gt; &quot;001&quot;
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_status'>status</span> <span class='comment'># =&gt; 422
+</span>
+<span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>ApiErrorResponseContract</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='label'>code:</span> <span class='kw'>nil</span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_code'>code</span>   <span class='comment'># =&gt; &quot;001&quot;
+</span></code></pre>
+
+<p>Subclasses can override default values by re-declaring the attribute:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>ApiErrorContract</span> <span class='op'>&lt;</span> <span class='const'>ApplicationContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:code</span><span class='comma'>,</span> <span class='symbol'>:string</span><span class='comma'>,</span> <span class='label'>default:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>000</span><span class='tstring_end'>&quot;</span></span>
+<span class='kw'>end</span>
+
+<span class='kw'>class</span> <span class='const'>ApiErrorResponseContract</span> <span class='op'>&lt;</span> <span class='const'>ApiErrorContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:code</span><span class='comma'>,</span> <span class='symbol'>:string</span><span class='comma'>,</span> <span class='label'>default:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>001</span><span class='tstring_end'>&quot;</span></span>  <span class='comment'># overrides parent default
+</span><span class='kw'>end</span>
+</code></pre>
+
+<h2 id="label-Nested+Contracts">Nested Contracts</h2>
+
+<p>Reference nested contracts by class or by string (resolved at runtime):</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>UserContract</span> <span class='op'>&lt;</span> <span class='const'>ApplicationContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:home_address</span><span class='comma'>,</span> <span class='label'>contract:</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>AddressContract</span><span class='tstring_end'>&#39;</span></span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>String references allow forward declarations and reduce load-order coupling. Resolution is performed at runtime and memoized in a thread-safe manner, making string references safe to use under concurrent Rails requests.</p>
+
+<h3 id="label-Polymorphic+Nesting+with+one_of">Polymorphic Nesting with <code>one_of</code></h3>
+
+<p>When a nested attribute may match one of several contract shapes, use <code>one_of</code>:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>UserContract</span> <span class='op'>&lt;</span> <span class='const'>ApplicationContract</span>
+  <span class='comment'># Required; must match one of the listed contracts
+</span>  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:home_address</span><span class='comma'>,</span> <span class='label'>contract:</span> <span class='id identifier rubyid_one_of'>one_of</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>USAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>UKAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span>
+
+  <span class='comment'># Optional; must match if present
+</span>  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:shipping_address</span><span class='comma'>,</span> <span class='label'>contract:</span> <span class='id identifier rubyid_one_of'>one_of</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>USAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>UKAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span><span class='comma'>,</span> <span class='label'>optional:</span> <span class='kw'>true</span>
+
+  <span class='comment'># Required; tries each contract in order, falls back to accepting any hash
+</span>  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:billing_address</span><span class='comma'>,</span> <span class='label'>contract:</span> <span class='id identifier rubyid_one_of'>one_of</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>USAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>UKAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span><span class='comma'>,</span> <span class='label'>permissive:</span> <span class='kw'>true</span>
+
+  <span class='comment'># Optional; tries each contract, falls back to any hash
+</span>  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:other_address</span><span class='comma'>,</span> <span class='label'>contract:</span> <span class='id identifier rubyid_one_of'>one_of</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>USAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>UKAddressContract</span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span><span class='comma'>,</span> <span class='label'>permissive:</span> <span class='kw'>true</span><span class='comma'>,</span> <span class='label'>optional:</span> <span class='kw'>true</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>Deserialization attempts each contract in declaration order using the following algorithm:</p>
+<ol><li>
+<p>Instantiate the candidate contract with <code>.new</code> — which never raises</p>
+</li><li>
+<p>Call <code>schema_validate!</code> on the result</p>
+</li><li>
+<p>If <code>schema_validate!</code> raises, move to the next candidate</p>
+</li><li>
+<p>If <code>schema_validate!</code> does not raise, return that contract</p>
+</li></ol>
+
+<p>If no candidate passes <code>schema_validate!</code> and <code>permissive: true</code> is not set, <code>ApiContract::UnexpectedAttributeError</code> is raised.</p>
+
+<h2 id="label-Types+Reference">Types Reference</h2>
+
+<h3 id="label-Standard+Types+-28via+ActiveModel-3A-3AAttributes-29">Standard Types (via ActiveModel::Attributes)</h3>
+
+<p><code>big_integer</code>, <code>binary</code>, <code>boolean</code>, <code>date</code>, <code>date_time</code>, <code>decimal</code>, <code>float</code>, <code>immutable_string</code>, <code>integer</code>, <code>string</code>, <code>time</code>, <code>value</code></p>
+
+<h3 id="label-Special+Types">Special Types</h3>
+
+<p><strong><code>:permissive_hash</code></strong> — Accepts any hash with any keys. Serializes to a JSON object. Deserializes to a <code>Hash</code> with symbolized keys. “Permissive” refers to the hash contents — any keys and values are allowed — not to the value itself. A <code>nil</code> value is not a valid hash, so <code>nil</code> is rejected unless the attribute is declared <code>optional: true</code>.</p>
+
+<p><strong><code>array: :type</code></strong> — Typed array. Elements are coerced using standard ActiveModel casting rules — <code>&quot;100&quot;</code> coerces to <code>100</code> for an <code>:integer</code> array. However, values that ActiveModel would silently cast to a fallback (e.g., <code>&quot;a&quot;</code> → <code>0</code>) must instead raise <code>ApiContract::InvalidContractError</code>. The gem must override ActiveModel’s default silent-fallback behavior for typed arrays so that only genuinely coercible values are accepted. Non-array values (including <code>nil</code>) are rejected unless the attribute is declared <code>optional: true</code>.</p>
+
+<p><strong><code>array: :permissive</code></strong> — Accepts any array including nested hashes and nils. “Permissive” refers to the array elements — any types are allowed — not to the value itself. No element coercion or validation. Serializes to a JSON array. Non-array values (including <code>nil</code>) are rejected unless the attribute is declared <code>optional: true</code>.</p>
+
+<p><strong><code>contract:</code></strong> — Nested contract, with recursive validation.</p>
+
+<p><strong><code>:computed</code></strong> — Derived value produced at serialization time. Never read from input; never raises <code>MissingAttributeError</code>. See <a href="#computed-attributes">Computed Attributes</a>.</p>
+
+<h2 id="label-Computed+Attributes">Computed Attributes</h2>
+
+<p>A computed attribute is not read from input and plays no role in structural or data validation. Its value is produced at serialization time by calling a block or instance method on the contract. The result appears in <code>to_h</code>, <code>as_json</code>, <code>to_json</code>, and <code>as_camelcase_json</code> under the declared attribute key.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># Using a block
+</span><span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:coordinates</span><span class='comma'>,</span> <span class='symbol'>:computed</span><span class='comma'>,</span> <span class='label'>with:</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='lbracket'>[</span><span class='id identifier rubyid_latitude'>latitude</span><span class='comma'>,</span> <span class='id identifier rubyid_longitude'>longitude</span><span class='rbracket'>]</span> <span class='rbrace'>}</span>
+
+<span class='comment'># Using a method name
+</span><span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:coordinates</span><span class='comma'>,</span> <span class='symbol'>:computed</span><span class='comma'>,</span> <span class='symbol'>:build_coordinates</span>
+</code></pre>
+
+<p>Because the block or method is called on the contract instance, it has full access to all other attribute values via their reader methods.</p>
+
+<p>Computed attributes: - Are <strong>excluded from deserialization</strong> — they are silently ignored if present in <code>from_params</code> or <code>from_json</code> input - Are <strong>excluded from <code>attributes</code></strong> and <strong>excluded from <code>valid?</code> / <code>errors</code></strong> — they cannot be the source of a validation failure - Are <strong>always optional</strong> — a nil return value is serialized as <code>null</code> unless <code>compact</code> is used - <strong>Do appear in <code>open_api_schema</code></strong> with <code>&quot;readOnly&quot;: true</code> since they are output-only</p>
+
+<h3 id="label-Extended+Example">Extended Example</h3>
+
+<p>A common use case is assembling derived or formatted values from other attributes without storing them on the model:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>AddressContract</span> <span class='op'>&lt;</span> <span class='const'>ApplicationContract</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:street</span><span class='comma'>,</span>      <span class='label'>array:</span> <span class='symbol'>:string</span><span class='comma'>,</span> <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Street lines</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:city</span><span class='comma'>,</span>        <span class='symbol'>:string</span><span class='comma'>,</span>        <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>City</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:state</span><span class='comma'>,</span>       <span class='symbol'>:string</span><span class='comma'>,</span>        <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>2-letter state abbreviation</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:postal_code</span><span class='comma'>,</span> <span class='symbol'>:string</span><span class='comma'>,</span>        <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ZIP code</span><span class='tstring_end'>&quot;</span></span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:latitude</span><span class='comma'>,</span>    <span class='symbol'>:float</span><span class='comma'>,</span>         <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Latitude</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>  <span class='label'>optional:</span> <span class='kw'>true</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:longitude</span><span class='comma'>,</span>   <span class='symbol'>:float</span><span class='comma'>,</span>         <span class='label'>description:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Longitude</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>optional:</span> <span class='kw'>true</span>
+
+  <span class='comment'># Assembled at serialization from the stored lat/lng attributes
+</span>  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:coordinates</span><span class='comma'>,</span> <span class='symbol'>:computed</span><span class='comma'>,</span> <span class='label'>with:</span> <span class='tlambda'>-&gt;</span> <span class='tlambeg'>{</span> <span class='lbracket'>[</span><span class='id identifier rubyid_latitude'>latitude</span><span class='comma'>,</span> <span class='id identifier rubyid_longitude'>longitude</span><span class='rbracket'>]</span><span class='period'>.</span><span class='id identifier rubyid_all?'>all?</span><span class='lparen'>(</span><span class='op'>&amp;</span><span class='symbol'>:present?</span><span class='rparen'>)</span> <span class='op'>?</span> <span class='lbracket'>[</span><span class='id identifier rubyid_latitude'>latitude</span><span class='comma'>,</span> <span class='id identifier rubyid_longitude'>longitude</span><span class='rbracket'>]</span> <span class='op'>:</span> <span class='kw'>nil</span> <span class='rbrace'>}</span>
+
+  <span class='comment'># Formatted single-line address assembled from structured fields
+</span>  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:full_address</span><span class='comma'>,</span> <span class='symbol'>:computed</span><span class='comma'>,</span> <span class='symbol'>:build_full_address</span>
+
+  <span class='id identifier rubyid_validates'>validates</span> <span class='symbol'>:postal_code</span><span class='comma'>,</span> <span class='label'>format:</span> <span class='tstring'><span class='regexp_beg'>/</span><span class='tstring_content'>\A\d{5}(-\d{4})?\z</span><span class='regexp_end'>/</span></span>
+  <span class='id identifier rubyid_validates'>validates</span> <span class='symbol'>:state</span><span class='comma'>,</span>       <span class='label'>inclusion:</span> <span class='lbrace'>{</span> <span class='label'>in:</span> <span class='const'>CUSTOMER_STATES</span> <span class='rbrace'>}</span>
+
+  <span class='id identifier rubyid_after_validation'>after_validation</span> <span class='symbol'>:geocode</span>
+
+  <span class='id identifier rubyid_private'>private</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_build_full_address'>build_full_address</span>
+    <span class='id identifier rubyid_parts'>parts</span> <span class='op'>=</span> <span class='id identifier rubyid_street'>street</span> <span class='op'>+</span> <span class='lbracket'>[</span><span class='id identifier rubyid_city'>city</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_state'>state</span><span class='embexpr_end'>}</span><span class='tstring_content'> </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_postal_code'>postal_code</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='rbracket'>]</span>
+    <span class='id identifier rubyid_parts'>parts</span><span class='period'>.</span><span class='id identifier rubyid_join'>join</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>, </span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>def</span> <span class='id identifier rubyid_geocode'>geocode</span>
+    <span class='id identifier rubyid_result'>result</span> <span class='op'>=</span> <span class='const'>Geocoder</span><span class='period'>.</span><span class='id identifier rubyid_coordinates'>coordinates</span><span class='lparen'>(</span><span class='id identifier rubyid_build_full_address'>build_full_address</span><span class='rparen'>)</span>
+    <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_result'>result</span><span class='period'>.</span><span class='id identifier rubyid_present?'>present?</span>
+    <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_latitude'>latitude</span>  <span class='op'>=</span> <span class='id identifier rubyid_result'>result</span><span class='lbracket'>[</span><span class='int'>0</span><span class='rbracket'>]</span>
+    <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_longitude'>longitude</span> <span class='op'>=</span> <span class='id identifier rubyid_result'>result</span><span class='lbracket'>[</span><span class='int'>1</span><span class='rbracket'>]</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<pre class="code ruby"><code class="ruby"><span class='id identifier rubyid_attrs'>attrs</span> <span class='op'>=</span> <span class='lbrace'>{</span>
+  <span class='label'>street:</span>      <span class='lbracket'>[</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>123 Main St</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Apt 4B</span><span class='tstring_end'>&quot;</span></span><span class='rbracket'>]</span><span class='comma'>,</span>
+  <span class='label'>city:</span>        <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Springfield</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>state:</span>       <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>IL</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+  <span class='label'>postal_code:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>62701</span><span class='tstring_end'>&quot;</span></span>
+<span class='rbrace'>}</span>
+
+<span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>AddressContract</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_attrs'>attrs</span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_valid?'>valid?</span> <span class='comment'># =&gt; true  (also runs geocode via after_validation)
+</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_as_json'>as_json</span>
+<span class='comment'># =&gt; {
+</span><span class='comment'>#   &quot;street&quot;       =&gt; [&quot;123 Main St&quot;, &quot;Apt 4B&quot;],
+</span><span class='comment'>#   &quot;city&quot;         =&gt; &quot;Springfield&quot;,
+</span><span class='comment'>#   &quot;state&quot;        =&gt; &quot;IL&quot;,
+</span><span class='comment'>#   &quot;postal_code&quot;  =&gt; &quot;62701&quot;,
+</span><span class='comment'>#   &quot;latitude&quot;     =&gt; 39.7990,
+</span><span class='comment'>#   &quot;longitude&quot;    =&gt; -89.6544,
+</span><span class='comment'>#   &quot;coordinates&quot;  =&gt; [39.7990, -89.6544],
+</span><span class='comment'>#   &quot;full_address&quot; =&gt; &quot;123 Main St, Apt 4B, Springfield, IL 62701&quot;
+</span><span class='comment'># }
+</span>
+<span class='comment'># Computed attributes are excluded from input — this does not raise UnexpectedAttributeError
+</span><span class='const'>AddressContract</span><span class='period'>.</span><span class='id identifier rubyid_from_params'>from_params</span><span class='lparen'>(</span><span class='id identifier rubyid_params'>params</span><span class='period'>.</span><span class='id identifier rubyid_merge'>merge</span><span class='lparen'>(</span><span class='label'>coordinates:</span> <span class='lbracket'>[</span><span class='int'>0</span><span class='comma'>,</span> <span class='int'>0</span><span class='rbracket'>]</span><span class='comma'>,</span> <span class='label'>full_address:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ignored</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span><span class='rparen'>)</span>
+</code></pre>
+
+<p>Note that <code>latitude</code> and <code>longitude</code> are regular optional attributes populated via the <code>after_validation</code> callback. <code>coordinates</code> is a computed attribute that reads from them at serialization time. This separation keeps the stored data flat and normalized while the serialized representation stays rich.</p>
+
+<h2 id="label-Permissive+Attributes">Permissive Attributes</h2>
+
+<p>When a contract needs to accept and round-trip unknown keys alongside its declared schema, include <code>ApiContract::PermissiveAttributes</code>. Including this module also disables strict deserialization — <code>from_params</code> and <code>from_json</code> will no longer raise <code>UnexpectedAttributeError</code> for unknown keys, routing them to <code>permissive_attributes</code> instead. This is intentional: permissive contracts are used when payloads are flexible or partially unknown, and it is left to the implementor to define any custom validation logic for those extra attributes rather than having the contract reject them outright.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='kw'>class</span> <span class='const'>PermissiveHashContract</span> <span class='op'>&lt;</span> <span class='const'><span class='object_link'><a href="ApiContract.html" title="ApiContract (module)">ApiContract</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="ApiContract/Base.html" title="ApiContract::Base (class)">Base</a></span></span>
+  <span class='id identifier rubyid_include'>include</span> <span class='const'><span class='object_link'><a href="ApiContract.html" title="ApiContract (module)">ApiContract</a></span></span><span class='op'>::</span><span class='const'><span class='object_link'><a href="ApiContract/PermissiveAttributes.html" title="ApiContract::PermissiveAttributes (module)">PermissiveAttributes</a></span></span>
+
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:name</span><span class='comma'>,</span> <span class='symbol'>:string</span>
+  <span class='id identifier rubyid_attribute'>attribute</span> <span class='symbol'>:data</span><span class='comma'>,</span> <span class='symbol'>:permissive_hash</span>
+<span class='kw'>end</span>
+
+<span class='id identifier rubyid_contract'>contract</span> <span class='op'>=</span> <span class='const'>PermissiveHashContract</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='label'>name:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>test</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='label'>data:</span> <span class='lbrace'>{</span><span class='rbrace'>}</span><span class='comma'>,</span> <span class='label'>foo:</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>bar</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_permissive?'>permissive?</span>              <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_has_key?'>has_key?</span><span class='lparen'>(</span><span class='symbol'>:foo</span><span class='rparen'>)</span>           <span class='comment'># =&gt; true
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_has_attribute?'>has_attribute?</span><span class='lparen'>(</span><span class='symbol'>:foo</span><span class='rparen'>)</span>     <span class='comment'># =&gt; false  (not part of the schema)
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_attributes'>attributes</span>               <span class='comment'># =&gt; [:name, :data]
+</span>
+<span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_as_json'>as_json</span>                              <span class='comment'># =&gt; { &quot;name&quot; =&gt; &quot;test&quot;, &quot;data&quot; =&gt; {} }
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_as_json'>as_json</span><span class='lparen'>(</span><span class='label'>permissive:</span> <span class='kw'>true</span><span class='rparen'>)</span>            <span class='comment'># =&gt; { &quot;name&quot; =&gt; &quot;test&quot;, &quot;data&quot; =&gt; {}, &quot;foo&quot; =&gt; &quot;bar&quot; }
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_with_passthrough_attributes'>with_passthrough_attributes</span><span class='period'>.</span><span class='id identifier rubyid_to_h'>to_h</span>     <span class='comment'># =&gt; { name: &quot;test&quot;, data: {}, foo: &quot;bar&quot; }
+</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_permissive_attributes'>permissive_attributes</span>                <span class='comment'># =&gt; { foo: &quot;bar&quot; }
+</span></code></pre>
+
+<p>Unknown keys are stored separately from the schema. They are invisible by default and must be explicitly opted into via the <code>permissive: true</code> serialization option.</p>
+
+<h2 id="label-OpenAPI+Schema+Generation">OpenAPI Schema Generation</h2>
+
+<p>Every contract can generate a JSON Schema object describing its shape, types, and documentation. Because <code>description:</code> is a first-class attribute option, contracts are self-documenting by design — the schema reflects what developers already wrote, with no separate annotation layer.</p>
+
+<pre class="code ruby"><code class="ruby"><span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_open_api_schema'>open_api_schema</span>
+<span class='comment'># =&gt; {
+</span><span class='comment'>#   &quot;type&quot; =&gt; &quot;object&quot;,
+</span><span class='comment'>#   &quot;required&quot; =&gt; [&quot;name&quot;, &quot;email&quot;, &quot;home_address&quot;, &quot;favorite_foods&quot;],
+</span><span class='comment'>#   &quot;properties&quot; =&gt; {
+</span><span class='comment'>#     &quot;name&quot;               =&gt; { &quot;type&quot; =&gt; &quot;string&quot;,  &quot;description&quot; =&gt; &quot;User&#39;s full name&quot; },
+</span><span class='comment'>#     &quot;age&quot;                =&gt; { &quot;type&quot; =&gt; &quot;integer&quot;, &quot;description&quot; =&gt; &quot;User&#39;s age&quot; },
+</span><span class='comment'>#     &quot;email&quot;              =&gt; { &quot;type&quot; =&gt; &quot;string&quot;,  &quot;description&quot; =&gt; &quot;Email address&quot; },
+</span><span class='comment'>#     &quot;home_address&quot;       =&gt; { &quot;$ref&quot; =&gt; &quot;#/components/schemas/AddressContract&quot; },
+</span><span class='comment'>#     &quot;health_information&quot; =&gt; { &quot;type&quot; =&gt; &quot;object&quot;,  &quot;description&quot; =&gt; &quot;Any health information&quot; },
+</span><span class='comment'>#     &quot;favorite_foods&quot;     =&gt; { &quot;type&quot; =&gt; &quot;array&quot;, &quot;items&quot; =&gt; { &quot;type&quot; =&gt; &quot;string&quot; }, &quot;description&quot; =&gt; &quot;Favorite foods, max 3&quot; }
+</span><span class='comment'>#   }
+</span><span class='comment'># }
+</span></code></pre>
+
+<p>Optional attributes are omitted from the <code>required</code> array. Nested contracts emit a <code>$ref</code> to their own schema, enabling standard component reuse in OpenAPI documents.</p>
+
+<h3 id="label-Custom+Generator">Custom Generator</h3>
+
+<p><code>open_api_schema</code> returns a plain Ruby hash, so building a generator is straightforward:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># config/initializers/openapi.rb
+</span><span class='kw'>module</span> <span class='const'>OpenApi</span>
+  <span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_generate'>generate</span>
+    <span class='id identifier rubyid_contracts'>contracts</span> <span class='op'>=</span> <span class='lbracket'>[</span><span class='const'>UserContract</span><span class='comma'>,</span> <span class='const'>AddressContract</span><span class='comma'>,</span> <span class='const'>ApiErrorResponseContract</span><span class='rbracket'>]</span>
+
+    <span class='id identifier rubyid_schemas'>schemas</span> <span class='op'>=</span> <span class='id identifier rubyid_contracts'>contracts</span><span class='period'>.</span><span class='id identifier rubyid_each_with_object'>each_with_object</span><span class='lparen'>(</span><span class='lbrace'>{</span><span class='rbrace'>}</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_contract'>contract</span><span class='comma'>,</span> <span class='id identifier rubyid_hash'>hash</span><span class='op'>|</span>
+      <span class='id identifier rubyid_hash'>hash</span><span class='lbracket'>[</span><span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_name'>name</span><span class='rbracket'>]</span> <span class='op'>=</span> <span class='id identifier rubyid_contract'>contract</span><span class='period'>.</span><span class='id identifier rubyid_open_api_schema'>open_api_schema</span>
+    <span class='kw'>end</span>
+
+    <span class='lbrace'>{</span>
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>openapi</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>3.0.0</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>info</span><span class='tstring_end'>&quot;</span></span>    <span class='op'>=&gt;</span> <span class='lbrace'>{</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>title</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>My API</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>version</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>1.0.0</span><span class='tstring_end'>&quot;</span></span> <span class='rbrace'>}</span><span class='comma'>,</span>
+      <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>components</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='lbrace'>{</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>schemas</span><span class='tstring_end'>&quot;</span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_schemas'>schemas</span> <span class='rbrace'>}</span>
+    <span class='rbrace'>}</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<h3 id="label-RSwag+Integration">RSwag Integration</h3>
+
+<p><a href="https://github.com/rswag/rswag">RSwag</a> generates OpenAPI documentation from RSpec request specs. Contracts integrate directly by providing the schema hash where RSwag expects an inline schema definition:</p>
+
+<pre class="code ruby"><code class="ruby"><span class='comment'># spec/requests/users_spec.rb
+</span><span class='id identifier rubyid_require'>require</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>swagger_helper</span><span class='tstring_end'>&#39;</span></span>
+
+<span class='const'>RSpec</span><span class='period'>.</span><span class='id identifier rubyid_describe'>describe</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Users API</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='label'>type:</span> <span class='symbol'>:request</span> <span class='kw'>do</span>
+  <span class='id identifier rubyid_path'>path</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>/users</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_post'>post</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>Creates a user</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+      <span class='id identifier rubyid_consumes'>consumes</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>application/json</span><span class='tstring_end'>&#39;</span></span>
+      <span class='id identifier rubyid_produces'>produces</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>application/json</span><span class='tstring_end'>&#39;</span></span>
+
+      <span class='id identifier rubyid_parameter'>parameter</span> <span class='label'>name:</span> <span class='symbol'>:user</span><span class='comma'>,</span> <span class='label'>in:</span> <span class='symbol'>:body</span><span class='comma'>,</span> <span class='label'>schema:</span> <span class='const'>UserContract</span><span class='period'>.</span><span class='id identifier rubyid_open_api_schema'>open_api_schema</span>
+
+      <span class='id identifier rubyid_response'>response</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>201</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>user created</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+        <span class='id identifier rubyid_schema'>schema</span> <span class='const'>UserResponseContract</span><span class='period'>.</span><span class='id identifier rubyid_open_api_schema'>open_api_schema</span>
+        <span class='comment'># ...
+</span>      <span class='kw'>end</span>
+
+      <span class='id identifier rubyid_response'>response</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>422</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>invalid request</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>do</span>
+        <span class='id identifier rubyid_schema'>schema</span> <span class='const'>ApiErrorResponseContract</span><span class='period'>.</span><span class='id identifier rubyid_open_api_schema'>open_api_schema</span>
+        <span class='comment'># ...
+</span>      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span>
+</code></pre>
+
+<p>Because the schema is derived directly from the contract class used in the controller, request documentation and runtime enforcement are always in sync — changing an attribute in the contract updates both the validation behavior and the generated API docs.</p>
+
+<h2 id="label-Exception+Reference">Exception Reference</h2>
+
+<h3 id="label-Schema-Level+-28raised+by+schema_validate-21-2C+and+by+from_params+-2F+from_json+-2F+from_camelized_json+which+call+it+internally-29">Schema-Level (raised by <code>schema_validate!</code>, and by <code>from_params</code> / <code>from_json</code> / <code>from_camelized_json</code> which call it internally)</h3>
+
+<table role="table">
+<thead>
+<tr>
+<th>Exception</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>‘ApiContract::MissingAttributeError`</td>
+<td>One or more required attributes are absent. Checked before unexpected attributes.</td>
+</tr>
+<tr>
+<td>‘ApiContract::UnexpectedAttributeError`</td>
+<td>Attributes are present that are not declared in the schema.</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="label-Data-Level">Data-Level</h3>
+
+<table role="table">
+<thead>
+<tr>
+<th>Exception</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>‘ApiContract::InvalidContractError`</td>
+<td>Structural shape is correct but data fails validations or type coercion. Exposes a ‘#contract` method returning the original contract object; use `#errors` on it to retrieve validation messages.</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>InvalidContractError</code> is also raised by serialization methods (<code>to_json</code>, <code>as_json</code>, <code>as_camelcase_json</code>) when called on an invalid contract.</p>
+<hr>
+
+<h2 id="label-Open+Questions">Open Questions</h2>
+<ol><li>
+<p><strong><code>one_of</code> resolution ambiguity</strong> — ✅ Resolved. First match wins. Each candidate is instantiated with <code>.new</code> and then <code>schema_validate!</code> is called; the first candidate that does not raise is used. Declaration order is therefore significant — more specific contracts should be listed before more general ones.</p>
+</li><li>
+<p><strong><code>merge</code> conflict resolution</strong> — ✅ Resolved. <code>merge</code> uses <code>deep_merge</code> so the argument always wins, including <code>nil</code> values — a <code>nil</code> in the argument will overwrite a populated value in the receiver. Schema and data validation are both run on the result by default but can each be disabled independently via <code>strict: false</code> and <code>validate: false</code>.</p>
+</li><li>
+<p><strong>Nested contract errors in the parent’s error hash</strong> — ✅ Resolved. Error keys are flattened using dot notation (e.g., <code>errors[:&quot;home_address.city&quot;]</code>). There is no nesting in the error hash.</p>
+</li><li>
+<p><strong><code>mutate</code> vs <code>clone</code> distinction</strong> — ✅ Resolved. <code>clone</code> accepts optional keyword arguments — you can provide as many or as few changed attributes as you like. <code>mutate</code> requires that the changed attributes be explicitly provided as arguments; it will not accept an empty call. Both return a new immutable contract and call <code>schema_validate!</code> internally.</p>
+</li><li>
+<p><strong>Array element type coercion errors</strong> — ✅ Resolved. Standard ActiveModel coercion applies where the cast is meaningful — <code>&quot;100&quot;</code> coerces to <code>100</code> for an <code>:integer</code> array. Values that ActiveModel would silently fall back on (e.g., <code>&quot;a&quot;</code> → <code>0</code>) must raise <code>ApiContract::InvalidContractError</code> instead. The gem must intercept ActiveModel’s silent-fallback path for typed arrays and treat those cases as data-level errors.</p>
+</li><li>
+<p><strong>Thread safety of string-referenced contracts</strong> — ✅ Resolved. String-referenced contract resolution is memoized and must be implemented in a thread-safe manner. The gem must ensure that concurrent Rails requests resolving the same string reference do not produce race conditions — for example, by using <code>Mutex</code> or Ruby’s <code>||=</code> under a class-level lock rather than a bare instance variable assignment.</p>
+</li><li>
+<p><strong><code>to_params</code> behavior on nested contracts</strong> — ✅ Resolved. <code>to_params</code> must produce a structure that is indistinguishable from what Rails would generate natively — nested contracts become nested <code>ActionController::Parameters</code> objects, preserving the full depth of the structure. The gem must not flatten or transform the hierarchy, as doing so would break any downstream code that traverses or permits nested params in the standard Rails way.</p>
+</li><li>
+<p><strong><code>open_api_schema</code> and <code>one_of</code></strong> — Does <code>open_api_schema</code> emit a JSON Schema <code>oneOf</code> construct for polymorphic nested contracts, or does it produce something simpler?</p>
+</li></ol>
+</div></div>
+
+      <div id="footer">
+  Generated on Wed Feb 25 11:12:27 2026 by
+  <a href="https://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
+  0.9.38 (ruby-3.4.8).
+</div>
+
+    </div>
+  </body>
+</html>
