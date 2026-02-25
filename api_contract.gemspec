@@ -23,10 +23,11 @@ Gem::Specification.new do |spec|
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
       (File.expand_path(f) == __FILE__) ||
-        f.start_with?('bin/', 'spec/', '.', 'Gemfile', 'Rakefile')
+        f.start_with?('bin/', 'spec/', '.', 'Gemfile', 'Rakefile', 'ai/', 'doc/', 'mise.toml') ||
+        f == 'CLAUDE.md'
     end
   end
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'activemodel', '>= 7.1'
+  spec.add_dependency 'activemodel', '~> 7.1'
 end

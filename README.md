@@ -1,5 +1,9 @@
 # ApiContract
 
+[![Gem Version](https://badge.fury.io/rb/api_contract.svg)](https://badge.fury.io/rb/api_contract)
+[![CI](https://github.com/turbo/api_contract/actions/workflows/ci.yml/badge.svg)](https://github.com/turbo/api_contract/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 A Ruby gem for defining typed, validated, immutable data transfer objects (DTOs) with first-class Rails integration. Contracts are a drop-in replacement for `ActionController::Parameters` (StrongParameters) that bring type coercion, structural validation, and immutability to controller boundaries — distinct from ActiveRecord validations, which guard persistence.
 
 ## Installation
