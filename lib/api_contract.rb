@@ -13,6 +13,7 @@ require_relative 'api_contract/attribute_registry'
 require_relative 'api_contract/strict_coercion'
 require_relative 'api_contract/serialization'
 require_relative 'api_contract/immutability'
+require_relative 'api_contract/normalizers'
 require_relative 'api_contract/base'
 
 # Typed, validated, immutable data transfer objects with Rails integration.

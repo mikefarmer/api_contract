@@ -22,6 +22,7 @@ module ApiContract
     include StrictCoercion
     include Serialization
     include Immutability
+    include Normalizers
 
     # Constructs a new contract instance. Never raises an exception,
     # regardless of which attributes are passed.
@@ -39,6 +40,7 @@ module ApiContract
       @_unexpected_keys = unexpected.freeze
       capture_raw_attributes(known)
       super(known)
+      apply_normalizers!
       freeze_contract!
     end
 
