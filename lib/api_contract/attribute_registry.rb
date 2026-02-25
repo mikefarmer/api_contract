@@ -18,7 +18,7 @@ module ApiContract
   module AttributeRegistry
     # Custom options extracted from the +attribute+ call before delegating
     # to ActiveModel.
-    CUSTOM_OPTIONS = %i[optional description array contract].freeze
+    CUSTOM_OPTIONS = %i[optional description array contract permissive].freeze
 
     # Class-level methods mixed into the including class.
     module ClassMethods
@@ -122,6 +122,7 @@ module ApiContract
         attribute_registry[name.to_sym] = {
           type: type,
           optional: options.delete(:optional) || false,
+          permissive: options.delete(:permissive) || false,
           description: options.delete(:description),
           has_default: options.key?(:default),
           default: options[:default],

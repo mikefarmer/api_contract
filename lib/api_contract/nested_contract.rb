@@ -98,6 +98,7 @@ module ApiContract
     end
 
     # Instantiates a single nested contract attribute if its value is a Hash.
+    # Handles both direct contract references and {OneOf} descriptors.
     #
     # @param attr_name [Symbol] the attribute name
     # @param meta [Hash] the attribute metadata
@@ -106,8 +107,32 @@ module ApiContract
       value = public_send(attr_name)
       return unless value.is_a?(Hash)
 
-      contract_class = self.class.resolve_contract(meta[:contract])
-      _write_attribute(attr_name.to_s, contract_class.new(value))
+      contract_ref = meta[:contract]
+      nested = if contract_ref.is_a?(ApiContract::OneOf)
+                 resolve_one_of(contract_ref, value, meta[:permissive])
+               else
+                 self.class.resolve_contract(contract_ref).new(value)
+               end
+      _write_attribute(attr_name.to_s, nested)
+    end
+
+    # Resolves a {OneOf} descriptor against a hash value.
+    #
+    # @param one_of [ApiContract::OneOf] the descriptor
+    # @param value [Hash] the input hash
+    # @param permissive [Boolean] whether to fall back to a plain hash
+    # @return [ApiContract::Base, Hash] the resolved contract or plain hash
+    # @raise [ApiContract::UnexpectedAttributeError] if no candidate matches and not permissive
+    def resolve_one_of(one_of, value, permissive)
+      result = one_of.resolve(value, resolver: self.class)
+      return result if result
+
+      return value if permissive
+
+      raise UnexpectedAttributeError.new(
+        "No matching contract for one_of: #{one_of.candidates.inspect}",
+        attributes: value.keys
+      )
     end
 
     # Validates schema of all nested contracts, raising on the first error.

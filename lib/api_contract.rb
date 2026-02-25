@@ -15,6 +15,7 @@ require_relative 'api_contract/schema_validation'
 require_relative 'api_contract/serialization'
 require_relative 'api_contract/immutability'
 require_relative 'api_contract/normalizers'
+require_relative 'api_contract/one_of'
 require_relative 'api_contract/nested_contract'
 require_relative 'api_contract/base'
 

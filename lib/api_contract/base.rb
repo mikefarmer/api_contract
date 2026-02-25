@@ -41,6 +41,17 @@ module ApiContract
       freeze_contract!
     end
 
+    # Returns a {OneOf} descriptor for polymorphic nested contracts.
+    #
+    # @param contracts [Array<Class, String>] candidate contract classes or string names
+    # @return [ApiContract::OneOf] a polymorphic contract descriptor
+    #
+    # @example
+    #   attribute :address, contract: one_of('USAddress', 'UKAddress')
+    def self.one_of(*contracts)
+      OneOf.new(*contracts)
+    end
+
     # Constructs a contract from ActionController::Parameters or a plain hash,
     # calling {#schema_validate!} and data validations internally.
     #
