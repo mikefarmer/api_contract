@@ -101,6 +101,14 @@ module ApiContract
       )
     end
 
+    # Returns whether this contract accepts permissive attributes.
+    # Override by including {ApiContract::PermissiveAttributes}.
+    #
+    # @return [Boolean] false by default
+    def permissive?
+      false
+    end
+
     # Returns the set of attribute keys that were explicitly provided
     # during construction (after symbolization).
     #

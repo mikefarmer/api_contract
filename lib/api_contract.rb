@@ -18,6 +18,7 @@ require_relative 'api_contract/normalizers'
 require_relative 'api_contract/one_of'
 require_relative 'api_contract/computed'
 require_relative 'api_contract/nested_contract'
+require_relative 'api_contract/permissive_attributes'
 require_relative 'api_contract/base'
 
 # Typed, validated, immutable data transfer objects with Rails integration.
