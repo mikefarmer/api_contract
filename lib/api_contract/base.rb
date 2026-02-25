@@ -26,6 +26,7 @@ module ApiContract
     include Normalizers
     include NestedContract
     include Computed
+    include RailsInterop
 
     # Constructs a new contract instance. Never raises an exception,
     # regardless of which attributes are passed.
