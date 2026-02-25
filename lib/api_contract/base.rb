@@ -25,6 +25,7 @@ module ApiContract
     include Immutability
     include Normalizers
     include NestedContract
+    include Computed
 
     # Constructs a new contract instance. Never raises an exception,
     # regardless of which attributes are passed.
@@ -152,8 +153,10 @@ module ApiContract
     # @param unexpected [Hash] accumulator for undeclared attributes
     # @return [void]
     def classify_attribute(key, value, known, provided, unexpected)
-      if self.class.declared_attribute_names.include?(key)
-        meta = self.class.attribute_registry[key]
+      meta = self.class.attribute_registry[key]
+      if meta
+        return if meta[:type] == :computed
+
         unless value.nil? && meta[:has_default]
           known[key] = value
           provided << key

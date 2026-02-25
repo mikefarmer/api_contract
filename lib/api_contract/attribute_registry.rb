@@ -18,7 +18,7 @@ module ApiContract
   module AttributeRegistry
     # Custom options extracted from the +attribute+ call before delegating
     # to ActiveModel.
-    CUSTOM_OPTIONS = %i[optional description array contract permissive].freeze
+    CUSTOM_OPTIONS = %i[optional description array contract permissive with].freeze
 
     # Class-level methods mixed into the including class.
     module ClassMethods
@@ -41,9 +41,14 @@ module ApiContract
       # @option options [Symbol] :array element type for typed arrays, or +:permissive+
       # @option options [Object] :default default value (handled by ActiveModel)
       # @return [void]
-      def attribute(name, type = :value, **options)
+      def attribute(name, type = :value, method_name = nil, **options)
+        if type == :computed
+          register_computed_attribute(name, method_name, options)
+          return
+        end
+
         type = register_and_resolve_type(name, type, options)
-        super
+        super(name, type, **options)
       end
 
       # Returns the full metadata hash for all declared attributes.
@@ -59,7 +64,7 @@ module ApiContract
       # @return [Array<Symbol>] required attribute names
       def required_attribute_names
         attribute_registry.each_with_object([]) do |(name, meta), arr|
-          arr << name unless meta[:optional] || meta[:has_default]
+          arr << name unless meta[:optional] || meta[:has_default] || meta[:type] == :computed
         end
       end
 
@@ -87,6 +92,11 @@ module ApiContract
 
         store_attribute_metadata(name, type, options)
         type
+      end
+
+      def register_computed_attribute(name, method_name, options)
+        with = method_name || options.delete(:with)
+        store_attribute_metadata(name, :computed, options, with: with)
       end
 
       def resolve_contract_type(name, options, contract_ref)
@@ -118,16 +128,18 @@ module ApiContract
       # @param options [Hash] the full options hash (custom keys are deleted)
       # @param element_type [Symbol, nil] the element type for typed arrays
       # @return [void]
-      def store_attribute_metadata(name, type, options, element_type: nil, contract: nil)
-        attribute_registry[name.to_sym] = {
+      def store_attribute_metadata(name, type, options, **extra)
+        attribute_registry[name.to_sym] = build_metadata(type, options).merge(extra)
+      end
+
+      def build_metadata(type, options)
+        {
           type: type,
           optional: options.delete(:optional) || false,
           permissive: options.delete(:permissive) || false,
           description: options.delete(:description),
           has_default: options.key?(:default),
-          default: options[:default],
-          element_type: element_type,
-          contract: contract
+          default: options[:default]
         }
       end
 

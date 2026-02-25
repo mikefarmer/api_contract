@@ -15,7 +15,9 @@ module ApiContract
     # @example
     #   contract.attributes # => [:name, :age, :email]
     def attributes
-      self.class.declared_attribute_names
+      self.class.declared_attribute_names.reject do |name|
+        self.class.attribute_registry[name][:type] == :computed
+      end
     end
 
     # Returns an array of attribute values in declaration order.
