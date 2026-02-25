@@ -27,6 +27,7 @@ module ApiContract
     include NestedContract
     include Computed
     include RailsInterop
+    include OpenApiSchema
 
     # Constructs a new contract instance. Never raises an exception,
     # regardless of which attributes are passed.
