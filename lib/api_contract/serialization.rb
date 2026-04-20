@@ -47,8 +47,9 @@ module ApiContract
       end
     end
 
-    # Returns a string-keyed hash of all declared attributes.
-    # Raises {InvalidContractError} if the contract is not valid.
+    # Returns a string-keyed hash of all declared attributes, recursing
+    # into nested hashes and arrays of hashes. Raises {InvalidContractError}
+    # if the contract is not valid.
     #
     # @return [Hash{String => Object}] string-keyed attribute hash
     # @raise [ApiContract::InvalidContractError] if the contract is invalid
@@ -57,7 +58,7 @@ module ApiContract
     #   contract.as_json # => { "name" => "Bob", "age" => 25 }
     def as_json(_options = nil)
       validate_for_serialization!
-      to_h.transform_keys(&:to_s)
+      deep_stringify_keys(to_h)
     end
 
     # Returns a JSON string representation of the contract.
@@ -72,8 +73,9 @@ module ApiContract
       JSON.generate(as_json)
     end
 
-    # Returns a string-keyed hash with camelCase keys.
-    # Raises {InvalidContractError} if the contract is not valid.
+    # Returns a string-keyed hash with camelCase keys, recursing into
+    # nested hashes and arrays of hashes. Raises {InvalidContractError}
+    # if the contract is not valid.
     #
     # @return [Hash{String => Object}] camelCase string-keyed hash
     # @raise [ApiContract::InvalidContractError] if the contract is invalid
@@ -82,7 +84,7 @@ module ApiContract
     #   contract.as_camelcase_json # => { "homeAddress" => "..." }
     def as_camelcase_json
       validate_for_serialization!
-      to_h.transform_keys { |key| camelize_key(key) }
+      deep_camelize_keys(to_h)
     end
 
     # Delegates to +to_h.dig+ for nested value access.
@@ -140,6 +142,42 @@ module ApiContract
     # @return [String] the camelCase string
     def camelize_key(key)
       key.to_s.gsub(/_([a-z\d])/) { ::Regexp.last_match(1).upcase }
+    end
+
+    # Recursively converts all hash keys to strings, descending into
+    # arrays of hashes as well.
+    #
+    # @param hash [Hash] the hash to transform
+    # @return [Hash{String => Object}] string-keyed hash
+    def deep_stringify_keys(hash)
+      hash.each_with_object({}) do |(key, value), result|
+        result[key.to_s] = deep_transform_value(value, :deep_stringify_keys)
+      end
+    end
+
+    # Recursively converts all hash keys to camelCase strings, descending
+    # into arrays of hashes as well.
+    #
+    # @param hash [Hash] the hash to transform
+    # @return [Hash{String => Object}] camelCase string-keyed hash
+    def deep_camelize_keys(hash)
+      hash.each_with_object({}) do |(key, value), result|
+        result[camelize_key(key)] = deep_transform_value(value, :deep_camelize_keys)
+      end
+    end
+
+    # Applies a hash-key transformation to a single value, recursing into
+    # hashes and arrays of hashes.
+    #
+    # @param value [Object] the value to transform
+    # @param transformer [Symbol] method name to call on inner hashes
+    # @return [Object] the transformed value
+    def deep_transform_value(value, transformer)
+      case value
+      when Hash then send(transformer, value)
+      when Array then value.map { |element| deep_transform_value(element, transformer) }
+      else value
+      end
     end
   end
 end

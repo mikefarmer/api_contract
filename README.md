@@ -340,6 +340,53 @@ Deserialization attempts each contract in declaration order using the following 
 
 If no candidate passes `schema_validate!` and `permissive: true` is not set, `ApiContract::UnexpectedAttributeError` is raised.
 
+### Array of Contracts
+
+Use the `array:` option with a contract reference — a class, a string name, or a `one_of(...)` descriptor — to declare a typed array of nested contracts:
+
+```ruby
+class UserContract < ApplicationContract
+  attribute :name,      :string
+  attribute :addresses, array: 'AddressContract', description: "All known addresses"
+end
+
+contract = UserContract.from_params(
+  name: 'Alice',
+  addresses: [
+    { city: 'NYC', state: 'NY' },
+    { city: 'LA',  state: 'CA' }
+  ]
+)
+
+contract.addresses        # => [#<AddressContract ...>, #<AddressContract ...>]
+contract.addresses.first  # => AddressContract instance
+```
+
+Each element is instantiated as the referenced contract and validated recursively. Element-level validation errors propagate into the parent's error hash using indexed dot notation:
+
+```ruby
+contract.errors
+# => { :"addresses[1].state" => ["is the wrong length (should be 2 characters)"] }
+```
+
+Arrays of contracts compose with `optional:`, `default:`, and `one_of`:
+
+```ruby
+# Optional — nil is accepted
+attribute :addresses, array: 'AddressContract', optional: true
+
+# Default to an empty array
+attribute :addresses, array: 'AddressContract', optional: true, default: []
+
+# Polymorphic elements — each element is matched against the candidates in order
+attribute :addresses, array: one_of('USAddressContract', 'UKAddressContract')
+
+# Polymorphic with fallback — non-matching elements stay as plain hashes
+attribute :addresses, array: one_of('USAddressContract', 'UKAddressContract'), permissive: true
+```
+
+Non-array raw values are rejected via strict coercion (`"is not a valid array"`), and array elements that are neither hashes nor `ApiContract::Base` instances produce a per-element error (`"element at index N is not a valid contract"`).
+
 ## Types Reference
 
 ### Standard Types (via ActiveModel::Attributes)
@@ -353,6 +400,8 @@ If no candidate passes `schema_validate!` and `permissive: true` is not set, `Ap
 **`array: :type`** — Typed array. Elements are coerced using standard ActiveModel casting rules — `"100"` coerces to `100` for an `:integer` array. However, values that ActiveModel would silently cast to a fallback (e.g., `"a"` → `0`) must instead raise `ApiContract::InvalidContractError`. The gem must override ActiveModel's default silent-fallback behavior for typed arrays so that only genuinely coercible values are accepted. Non-array values (including `nil`) are rejected unless the attribute is declared `optional: true`.
 
 **`array: :permissive`** — Accepts any array including nested hashes and nils. "Permissive" refers to the array elements — any types are allowed — not to the value itself. No element coercion or validation. Serializes to a JSON array. Non-array values (including `nil`) are rejected unless the attribute is declared `optional: true`.
+
+**`array: ContractClass`** (or `array: 'ContractClass'`, or `array: one_of(...)`) — Typed array of nested contracts. Each hash element is instantiated as an instance of the referenced contract, validated recursively, and serialized back to a hash on output. Element-level validation errors propagate into the parent's error hash with indexed dot notation — e.g., `errors[:"addresses[1].state"]`. Non-array values and elements that are not hashes or contract instances are rejected via strict coercion. See [Array of Contracts](#array-of-contracts).
 
 **`contract:`** — Nested contract, with recursive validation.
 

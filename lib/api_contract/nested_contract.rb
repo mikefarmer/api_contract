@@ -58,30 +58,24 @@ module ApiContract
     end
 
     # Overrides +to_h+ to recursively serialize nested contracts.
+    # Arrays of nested contracts are mapped element-wise.
     #
     # @return [Hash{Symbol => Object}] symbolized attribute hash
     def to_h
-      super.transform_values { |v| v.is_a?(ApiContract::Base) ? v.to_h : v }
+      super.transform_values { |v| serialize_nested_value(v) }
     end
 
-    # Overrides +as_json+ to deep-convert keys to strings for nested
-    # contracts.
+    # Recursively converts nested contract values to plain hashes or
+    # arrays of hashes, leaving other values untouched.
     #
-    # @return [Hash{String => Object}] string-keyed hash
-    # @raise [ApiContract::InvalidContractError] if the contract is invalid
-    def as_json(_options = nil)
-      validate_for_serialization!
-      deep_stringify_keys(to_h)
-    end
-
-    # Overrides +as_camelcase_json+ to deep-convert keys to camelCase
-    # for nested contracts.
-    #
-    # @return [Hash{String => Object}] camelCase string-keyed hash
-    # @raise [ApiContract::InvalidContractError] if the contract is invalid
-    def as_camelcase_json
-      validate_for_serialization!
-      deep_camelize_keys(to_h)
+    # @param value [Object] the attribute value
+    # @return [Object] the serialized representation
+    def serialize_nested_value(value)
+      case value
+      when ApiContract::Base then value.to_h
+      when Array then value.map { |element| serialize_nested_value(element) }
+      else value
+      end
     end
 
     private
@@ -91,9 +85,13 @@ module ApiContract
     # @return [void]
     def instantiate_nested_contracts!
       self.class.attribute_registry.each do |attr_name, meta|
-        next unless meta[:contract]
+        next unless nested_contract_attribute?(meta)
 
-        instantiate_nested_attribute(attr_name, meta)
+        if meta[:type] == :contract_array
+          instantiate_nested_array_attribute(attr_name, meta)
+        else
+          instantiate_nested_attribute(attr_name, meta)
+        end
       end
     end
 
@@ -107,13 +105,52 @@ module ApiContract
       value = public_send(attr_name)
       return unless value.is_a?(Hash)
 
-      contract_ref = meta[:contract]
-      nested = if contract_ref.is_a?(ApiContract::OneOf)
-                 resolve_one_of(contract_ref, value, meta[:permissive])
-               else
-                 self.class.resolve_contract(contract_ref).new(value)
-               end
+      nested = build_nested_contract(meta[:contract], value, meta[:permissive])
       _write_attribute(attr_name.to_s, nested)
+    end
+
+    # Instantiates an array-of-contracts attribute. Hash elements are
+    # converted to contract instances; already-instantiated contracts and
+    # other values are passed through unchanged so strict coercion can
+    # surface any remaining issues.
+    #
+    # @param attr_name [Symbol] the attribute name
+    # @param meta [Hash] the attribute metadata
+    # @return [void]
+    def instantiate_nested_array_attribute(attr_name, meta)
+      value = public_send(attr_name)
+      return unless value.is_a?(Array)
+
+      nested = value.map do |element|
+        next element unless element.is_a?(Hash)
+
+        build_nested_contract(meta[:contract], element, meta[:permissive])
+      end
+      _write_attribute(attr_name.to_s, nested)
+    end
+
+    # Builds a single nested contract from a hash, dispatching on whether
+    # the reference is a {OneOf} descriptor or a direct class/string ref.
+    #
+    # @param contract_ref [Class, String, ApiContract::OneOf] the reference
+    # @param value [Hash] the input hash
+    # @param permissive [Boolean] whether to fall back to a plain hash
+    # @return [ApiContract::Base, Hash]
+    def build_nested_contract(contract_ref, value, permissive)
+      if contract_ref.is_a?(ApiContract::OneOf)
+        resolve_one_of(contract_ref, value, permissive)
+      else
+        self.class.resolve_contract(contract_ref).new(value)
+      end
+    end
+
+    # Returns whether an attribute holds a nested contract or an array of
+    # nested contracts.
+    #
+    # @param meta [Hash] the attribute metadata
+    # @return [Boolean]
+    def nested_contract_attribute?(meta)
+      meta[:contract] && %i[contract contract_array].include?(meta[:type])
     end
 
     # Resolves a {OneOf} descriptor against a hash value.
@@ -136,64 +173,63 @@ module ApiContract
     end
 
     # Validates schema of all nested contracts, raising on the first error.
+    # Arrays of contracts are recursed element-wise.
     #
     # @return [void]
     # @raise [ApiContract::MissingAttributeError]
     # @raise [ApiContract::UnexpectedAttributeError]
     def validate_nested_schemas!
       self.class.attribute_registry.each do |attr_name, meta|
-        next unless meta[:contract]
+        next unless nested_contract_attribute?(meta)
 
         nested = public_send(attr_name)
-        next unless nested.is_a?(ApiContract::Base)
-
-        nested.schema_validate!
+        if nested.is_a?(Array)
+          nested.each { |element| element.schema_validate! if element.is_a?(ApiContract::Base) }
+        elsif nested.is_a?(ApiContract::Base)
+          nested.schema_validate!
+        end
       end
     end
 
     # Validates all nested contracts and propagates errors with
-    # dot-notation keys.
+    # dot-notation keys. Arrays of contracts use +key[index].field+.
     #
     # @return [void]
     def validate_nested_contracts
       self.class.attribute_registry.each do |attr_name, meta|
-        next unless meta[:contract]
+        next unless nested_contract_attribute?(meta)
 
         propagate_nested_errors(attr_name)
       end
     end
 
-    # Propagates errors from a single nested contract.
+    # Propagates errors from a single nested contract or array of
+    # nested contracts.
     #
     # @param attr_name [Symbol] the parent attribute name
     # @return [void]
     def propagate_nested_errors(attr_name)
       nested = public_send(attr_name)
+      if nested.is_a?(Array)
+        nested.each_with_index do |element, index|
+          propagate_errors_from(element, "#{attr_name}[#{index}]")
+        end
+      else
+        propagate_errors_from(nested, attr_name.to_s)
+      end
+    end
+
+    # Propagates errors from a single nested contract under the given key prefix.
+    #
+    # @param nested [Object] the nested value
+    # @param prefix [String] the error key prefix
+    # @return [void]
+    def propagate_errors_from(nested, prefix)
       return unless nested.is_a?(ApiContract::Base)
       return if nested.valid?
 
       nested.errors.each do |error|
-        errors.add(:"#{attr_name}.#{error.attribute}", error.message)
-      end
-    end
-
-    # Recursively converts all hash keys to strings.
-    #
-    # @param hash [Hash] the hash to transform
-    # @return [Hash{String => Object}] string-keyed hash
-    def deep_stringify_keys(hash)
-      hash.each_with_object({}) do |(key, value), result|
-        result[key.to_s] = value.is_a?(Hash) ? deep_stringify_keys(value) : value
-      end
-    end
-
-    # Recursively converts all hash keys to camelCase strings.
-    #
-    # @param hash [Hash] the hash to transform
-    # @return [Hash{String => Object}] camelCase string-keyed hash
-    def deep_camelize_keys(hash)
-      hash.each_with_object({}) do |(key, value), result|
-        result[camelize_key(key)] = value.is_a?(Hash) ? deep_camelize_keys(value) : value
+        errors.add(:"#{prefix}.#{error.attribute}", error.message)
       end
     end
   end

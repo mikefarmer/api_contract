@@ -45,14 +45,25 @@ module ApiContract
     # @return [void]
     def validate_attribute_coercion(attr_name, meta)
       raw = @_raw_attributes[attr_name]
-      cast = public_send(attr_name)
+      dispatch_coercion_validation(attr_name, raw, meta)
+    end
 
-      if meta[:type] == :array
-        validate_array_coercion(attr_name, raw, cast, meta[:element_type], meta[:optional])
-      elsif meta[:type] == :permissive_hash
+    # Dispatches to a type-specific coercion validator.
+    #
+    # @param attr_name [Symbol] the attribute name
+    # @param raw [Object] the raw pre-cast value
+    # @param meta [Hash] the attribute metadata
+    # @return [void]
+    def dispatch_coercion_validation(attr_name, raw, meta)
+      case meta[:type]
+      when :array
+        validate_array_coercion(attr_name, raw, public_send(attr_name), meta[:element_type], meta[:optional])
+      when :contract_array
+        validate_contract_array_coercion(attr_name, raw, meta[:optional])
+      when :permissive_hash
         validate_permissive_hash_coercion(attr_name, raw, meta[:optional])
       else
-        validate_scalar_coercion(attr_name, raw, cast, meta[:type])
+        validate_scalar_coercion(attr_name, raw, public_send(attr_name), meta[:type])
       end
     end
 
@@ -121,6 +132,29 @@ module ApiContract
       return if raw.is_a?(Hash)
 
       errors.add(attr_name, "is not a valid permissive_hash: #{raw.inspect}")
+    end
+
+    # Validates that an array-of-contracts attribute received an Array
+    # whose elements are each a Hash or an {ApiContract::Base} instance.
+    # Only allows +nil+ when the attribute is optional.
+    #
+    # @param attr_name [Symbol] the attribute name
+    # @param raw [Object] the raw pre-cast value
+    # @param optional [Boolean] whether the attribute is optional
+    # @return [void]
+    def validate_contract_array_coercion(attr_name, raw, optional)
+      return if raw.nil? && optional
+
+      unless raw.is_a?(Array)
+        errors.add(attr_name, "is not a valid array: #{raw.inspect}")
+        return
+      end
+
+      raw.each_with_index do |element, index|
+        next if element.is_a?(Hash) || element.is_a?(ApiContract::Base)
+
+        errors.add(attr_name, "element at index #{index} is not a valid contract: #{element.inspect}")
+      end
     end
   end
 end

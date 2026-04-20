@@ -81,6 +81,7 @@ module ApiContract
       def build_type_schema(meta)
         case meta[:type]
         when :contract then contract_schema(meta)
+        when :contract_array then contract_array_schema(meta)
         when :array then array_schema(meta)
         when :permissive_hash then { 'type' => 'object' }
         when :computed then computed_schema(meta)
@@ -123,6 +124,22 @@ module ApiContract
       # @return [Hash{String => Object}] the array schema
       def array_schema(meta)
         items = array_items_schema(meta[:element_type])
+        { 'type' => 'array', 'items' => items }
+      end
+
+      # Builds schema for an array-of-contracts attribute. Emits a
+      # +$ref+ to the element contract, or a +oneOf+ clause when the
+      # element is a {ApiContract::OneOf} descriptor.
+      #
+      # @param meta [Hash] the attribute metadata
+      # @return [Hash{String => Object}] the array-of-contracts schema
+      def contract_array_schema(meta)
+        ref = meta[:contract]
+        items = if ref.is_a?(ApiContract::OneOf)
+                  one_of_schema(ref)
+                else
+                  { '$ref' => ref_path(ref) }
+                end
         { 'type' => 'array', 'items' => items }
       end
 

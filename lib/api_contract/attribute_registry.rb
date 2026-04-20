@@ -105,8 +105,22 @@ module ApiContract
       end
 
       def resolve_array_type(name, options, element_type)
+        if contract_reference?(element_type)
+          store_attribute_metadata(name, :contract_array, options, contract: element_type)
+          return ActiveModel::Type::Value.new
+        end
+
         store_attribute_metadata(name, :array, options, element_type: element_type)
         build_array_type(element_type)
+      end
+
+      # Returns whether the given value references a nested contract, as
+      # opposed to a scalar type symbol or the +:permissive+ sentinel.
+      #
+      # @param value [Object] the +array:+ option value
+      # @return [Boolean]
+      def contract_reference?(value)
+        value.is_a?(Class) || value.is_a?(String) || value.is_a?(ApiContract::OneOf)
       end
 
       # Builds the appropriate array type instance for the given element type.
