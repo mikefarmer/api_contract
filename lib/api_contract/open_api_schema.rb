@@ -18,6 +18,9 @@ module ApiContract
       boolean: 'boolean'
     }.freeze
 
+    # All UUID type symbols handled by {#uuid_scalar_schema}.
+    UUID_TYPE_SYMBOLS = [:uuid, *(1..8).map { |v| :"uuid_v#{v}" }].freeze
+
     # Sets up class-level methods when included.
     #
     # @param base [Class] the including class
@@ -85,8 +88,44 @@ module ApiContract
         when :array then array_schema(meta)
         when :permissive_hash then { 'type' => 'object' }
         when :computed then computed_schema(meta)
+        when *UUID_TYPE_SYMBOLS then uuid_scalar_schema(meta[:type])
         else scalar_schema(meta)
         end
+      end
+
+      # Builds schema for a UUID-valued attribute. Emits
+      # +format: uuid+ for the version-agnostic +:uuid+ type and
+      # adds a +pattern+ constraining the version nibble for
+      # +:uuid_vN+ variants.
+      #
+      # @param type_symbol [Symbol] +:uuid+ or +:uuid_vN+
+      # @return [Hash{String => String}] the UUID schema
+      def uuid_scalar_schema(type_symbol)
+        schema = { 'type' => 'string', 'format' => 'uuid' }
+        version = uuid_version_for(type_symbol)
+        schema['pattern'] = uuid_pattern_for(version) if version
+        schema
+      end
+
+      # Extracts the UUID version from a type symbol.
+      #
+      # @param type_symbol [Symbol]
+      # @return [Integer, nil]
+      def uuid_version_for(type_symbol)
+        match = type_symbol.to_s.match(/\Auuid_v([1-8])\z/)
+        match && match[1].to_i
+      end
+
+      # Builds a JSON Schema +pattern+ string enforcing the given UUID
+      # version nibble and RFC 9562 variant bits. Uses explicit
+      # +[0-9a-fA-F]+ character classes so the pattern is portable
+      # across JSON Schema validators (which default to
+      # case-sensitive matching).
+      #
+      # @param version [Integer]
+      # @return [String]
+      def uuid_pattern_for(version)
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-#{version}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
       end
 
       # Builds schema for a scalar (string, integer, etc.) attribute.
@@ -149,6 +188,7 @@ module ApiContract
       # @return [Hash{String => String}] the items schema
       def array_items_schema(element_type)
         return {} if element_type == :permissive
+        return uuid_scalar_schema(element_type) if UUID_TYPE_SYMBOLS.include?(element_type)
 
         json_type = TYPE_MAP[element_type]
         json_type ? { 'type' => json_type } : { 'type' => 'string' }

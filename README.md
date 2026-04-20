@@ -405,7 +405,60 @@ Non-array raw values are rejected via strict coercion (`"is not a valid array"`)
 
 **`contract:`** — Nested contract, with recursive validation.
 
+**`:uuid`** — RFC 9562 UUID string. Accepts any canonical 8-4-4-4-12 hex UUID of version 1 through 8, plus the nil UUID (`00000000-…`) and the max UUID (`ffffffff-…`). Case-insensitive on input; **normalized to lowercase on cast**. Non-string values and strings that don't match the UUID format are rejected via strict coercion. Serializes as a JSON string with `format: uuid` in the generated OpenAPI schema. See [UUIDs](#uuids).
+
+**`:uuid_v1` … `:uuid_v8`** — Version-specific UUID. Only accepts UUIDs whose version nibble (13th hex char) matches the declared version and whose variant bits (17th hex char) are in `[89ab]` per RFC 9562 §4.1. The nil and max UUIDs are rejected because they have no version nibble. See [UUIDs](#uuids).
+
 **`:computed`** — Derived value produced at serialization time. Never read from input; never raises `MissingAttributeError`. See [Computed Attributes](#computed-attributes).
+
+### UUIDs
+
+Declare a UUID attribute with `:uuid` when you don't care about the version, or with a version-specific symbol (`:uuid_v1` through `:uuid_v8`) when your API contract requires a particular generator. For new identifiers, `:uuid_v7` is the modern default — v7 UUIDs are time-ordered and sort lexicographically in insertion order, which is friendlier to indexes than v4's random layout.
+
+RFC 9562 (May 2024) defines eight versions:
+
+- `:uuid_v1` — time-based, MAC address (legacy)
+- `:uuid_v2` — DCE Security (rare; included for completeness)
+- `:uuid_v3` — name-based, MD5 hashed
+- `:uuid_v4` — random (the historical default)
+- `:uuid_v5` — name-based, SHA-1 hashed
+- `:uuid_v6` — time-ordered (reordered v1 bits)
+- `:uuid_v7` — Unix-epoch + random (recommended for new IDs)
+- `:uuid_v8` — vendor-custom
+
+```ruby
+class UserContract < ApiContract::Base
+  attribute :id,   :uuid_v7,          description: "Primary key"
+  attribute :tags, array: :uuid,      description: "Related resource IDs"
+end
+
+contract = UserContract.from_params(
+  id:   '018f6c9e-bb20-7b9e-a6a9-3f3b0c7c4b1f',
+  tags: ['F47AC10B-58CC-4372-A567-0E02B2C3D479']
+)
+contract.id   # => "018f6c9e-bb20-7b9e-a6a9-3f3b0c7c4b1f"
+contract.tags # => ["f47ac10b-58cc-4372-a567-0e02b2c3d479"]  (lowercased)
+```
+
+Behavior:
+
+- **Case-insensitive input, lowercase output.** The cast normalizes to lowercase so comparisons and indexes are consistent.
+- **Strict coercion.** Non-string inputs and strings that don't match the expected format produce an `ApiContract::InvalidContractError` (or a `valid?` failure for `.new`), with the error message naming the specific type — e.g., `"is not a valid uuid_v7: \"f47ac10b-…\""`.
+- **Nil/max UUIDs** are accepted by `:uuid` but rejected by `:uuid_vN`, since they have no version nibble.
+- **Arrays of UUIDs** — `array: :uuid` and `array: :uuid_v4` work exactly like other typed arrays. Element-level failures report as `"element at index N is not a valid uuid_vN: …"`.
+- **OpenAPI output** emits `format: uuid` for `:uuid`, and additionally adds a `pattern` constraining the version and variant bits for `:uuid_vN`:
+
+```ruby
+# attribute :id, :uuid
+# => { "type" => "string", "format" => "uuid" }
+
+# attribute :id, :uuid_v4
+# => {
+#      "type"    => "string",
+#      "format"  => "uuid",
+#      "pattern" => "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+#    }
+```
 
 ## Computed Attributes
 
