@@ -22,3 +22,4 @@ RSpec/DescribeClass:
     - "spec/api_contract/array_attributes_integration_spec.rb"
     - "spec/api_contract/contract_array_spec.rb"
     - "spec/api_contract/strict_coercion_spec.rb"
+    - "spec/api_contract/uuid_attribute_spec.rb"

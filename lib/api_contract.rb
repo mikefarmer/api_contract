@@ -9,6 +9,13 @@ require_relative 'api_contract/types/strict_coercion_validator'
 require_relative 'api_contract/types/permissive_array'
 require_relative 'api_contract/types/permissive_hash'
 require_relative 'api_contract/types/typed_array'
+require_relative 'api_contract/types/uuid'
+
+ActiveModel::Type.register(:uuid) { ApiContract::Types::UUID.new }
+(1..8).each do |uuid_version|
+  ActiveModel::Type.register(:"uuid_v#{uuid_version}") { ApiContract::Types::UUID.new(version: uuid_version) }
+end
+
 require_relative 'api_contract/attribute_registry'
 require_relative 'api_contract/strict_coercion'
 require_relative 'api_contract/schema_validation'

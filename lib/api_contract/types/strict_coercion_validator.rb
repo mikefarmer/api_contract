@@ -28,18 +28,25 @@ module ApiContract
       # Date/time types where invalid strings cast to +nil+.
       TEMPORAL_TYPES = %i[date datetime time].freeze
 
+      # Matches +:uuid+ and +:uuid_v1+..+:uuid_v8+.
+      UUID_TYPE_REGEX = /\Auuid(?:_v[1-8])?\z/
+
       class << self
         # Returns whether the cast from +raw+ to +cast_value+ represents
         # a genuine coercion for the given type, as opposed to a silent
         # fallback.
         #
-        # Only validates +String+ inputs—non-string raw values always pass.
+        # For most types, only validates +String+ inputs—non-string raw
+        # values always pass. UUID types are an exception: any non-nil
+        # input must cast to a valid UUID string, since UUIDs have no
+        # natural non-string representation.
         #
         # @param raw [Object] the original pre-cast value
         # @param cast_value [Object] the value after ActiveModel casting
         # @param type_symbol [Symbol] the ActiveModel type name
         # @return [Boolean] +true+ if the cast is valid
         def valid_cast?(raw, cast_value, type_symbol)
+          return valid_uuid_cast?(raw, cast_value, type_symbol) if UUID_TYPE_REGEX.match?(type_symbol)
           return true unless raw.is_a?(String)
           return true if PASSTHROUGH_TYPES.include?(type_symbol)
 
@@ -110,6 +117,33 @@ module ApiContract
           return true unless cast_value.nil?
 
           raw.strip.empty?
+        end
+
+        # Checks whether a UUID cast produced a valid UUID string for
+        # the expected version. +Types::UUID#cast+ downcases matches
+        # and passes non-matches through, so the post-cast value is
+        # the reliable check. +nil+ input is treated as valid here;
+        # required/optional enforcement happens in schema validation.
+        #
+        # @param raw [Object] the pre-cast value
+        # @param cast_value [Object] the cast value
+        # @param type_symbol [Symbol] +:uuid+ or +:uuid_vN+
+        # @return [Boolean]
+        def valid_uuid_cast?(raw, cast_value, type_symbol)
+          return true if raw.nil?
+          return false unless cast_value.is_a?(String)
+
+          ApiContract::Types::UUID.regex_for(uuid_version(type_symbol)).match?(cast_value)
+        end
+
+        # Returns the required version for a UUID type symbol, or
+        # +nil+ for the version-agnostic +:uuid+.
+        #
+        # @param type_symbol [Symbol]
+        # @return [Integer, nil]
+        def uuid_version(type_symbol)
+          match = type_symbol.to_s.match(/\Auuid_v([1-8])\z/)
+          match && match[1].to_i
         end
       end
     end
