@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe 'ApiContract::Base array attributes' do # rubocop:disable RSpec/DescribeClass
+RSpec.describe 'ApiContract::Base array attributes' do
   describe 'typed arrays with array: option' do
     let(:klass) do
       Class.new(ApiContract::Base) do

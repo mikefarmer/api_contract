@@ -12,7 +12,7 @@ group :development do
 end
 
 group :test do
-  gem 'actionpack', '>= 7.1'
+  gem 'actionpack', '>= 7.0', '< 9'
   gem 'rspec', '~> 3.13'
   gem 'simplecov', '~> 0.22', require: false
 end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe 'ApiContract::Base strict coercion' do # rubocop:disable RSpec/DescribeClass
+RSpec.describe 'ApiContract::Base strict coercion' do
   describe 'scalar attributes' do
     describe 'integer attributes' do
       let(:klass) { Class.new(ApiContract::Base) { attribute :age, :integer } }

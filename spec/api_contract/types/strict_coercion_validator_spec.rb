@@ -81,7 +81,8 @@ RSpec.describe ApiContract::Types::StrictCoercionValidator do
     end
 
     context 'with :boolean type' do
-      %w[true false 1 0 t f T F TRUE FALSE yes no YES NO y n Y N].each do |val|
+      %w[true false 1 0 t f T F TRUE FALSE yes no YES NO y n Y
+         N].each do |val|
         it "accepts valid boolean string #{val.inspect}" do
           expect(described_class.valid_cast?(val, nil, :boolean)).to be true
         end

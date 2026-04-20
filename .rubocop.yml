@@ -14,3 +14,10 @@ Layout/LineLength:
 RSpec/SpecFilePathFormat:
   CustomTransform:
     ApiContract: api_contract
+  Exclude:
+    - "spec/api_contract/integration_spec.rb"
+
+RSpec/DescribeClass:
+  Exclude:
+    - "spec/api_contract/array_attributes_integration_spec.rb"
+    - "spec/api_contract/strict_coercion_spec.rb"

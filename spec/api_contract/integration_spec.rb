@@ -2,7 +2,7 @@
 
 require 'action_controller'
 
-RSpec.describe ApiContract::Base do # rubocop:disable RSpec/SpecFilePathFormat
+RSpec.describe ApiContract::Base do
   before do
     address = Class.new(ApiContract::Base) do
       attribute :street, :string, description: 'Street address'
